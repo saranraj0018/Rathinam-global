@@ -3,14 +3,14 @@
     'label',
     'required' => false,
     'image' => false,                          // true => passport photo (image-only, shows thumbnail)
-    'accept' => '.pdf,.jpg,.jpeg,.png',
+    'accept' => '.pdf,.docx,.jpg,.jpeg,.png',
     'maxKb' => 2048,                           // 2 MB
     'hint' => null,
 ])
 
 @php
     $accept = $image ? 'image/png,image/jpeg,.png,.jpg,.jpeg' : $accept;
-    $defaultHint = $image ? 'JPG, JPEG or PNG · max 2 MB' : 'PDF, JPG, JPEG or PNG · max 2 MB';
+    $defaultHint = $image ? 'JPG, JPEG or PNG · max 2 MB' : 'PDF, DOCX, JPG, JPEG or PNG · max 2 MB';
 @endphp
 
 <div class="f-group js-upload" data-max-kb="{{ $maxKb }}" data-image="{{ $image ? '1' : '0' }}" {{ $attributes }}>

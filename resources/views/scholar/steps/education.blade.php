@@ -1,6 +1,6 @@
 @php
-    // Bachelor's is the universal minimum (FT / PT / Integrated / Start-up all hold a UG).
-    $requiredLevels = ['bachelor'];
+    // All qualifications are mandatory except "Others".
+    $requiredLevels = array_values(array_diff(array_keys($data['education_levels']), ['others']));
 @endphp
 <section class="wizard-step" data-step="2" data-step-id="education" hidden>
     <div class="step-head">
@@ -45,7 +45,7 @@
                 <div class="edu-cell edu-cell--file" data-cell="Mark sheet">
                     <div class="edu-up" data-edu-upload>
                         <label class="edu-up__label">
-                            <input type="file" name="education[{{ $key }}][marksheet]" accept=".pdf,.jpg,.jpeg,.png"
+                            <input type="file" name="education[{{ $key }}][marksheet]" accept=".pdf,.docx,.jpg,.jpeg,.png"
                                    class="sr-only edu-up__input" @if($req) data-required="true" @endif disabled>
                             <span class="edu-up__btn">⬆ Upload</span>
                         </label>
@@ -59,5 +59,5 @@
             </div>
         @endforeach
     </div>
-    <p class="f-hint mt-3">Each file: PDF, JPG, JPEG or PNG · max 2 MB.</p>
+    <p class="f-hint mt-3">Each file: PDF, DOCX, JPG, JPEG or PNG · max 2 MB.</p>
 </section>

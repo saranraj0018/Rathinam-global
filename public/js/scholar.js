@@ -3,6 +3,7 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         initNavbar();
+        initProfileMenu();
 
         var form = document.getElementById('scholar-form');
         if (!form) return;
@@ -16,11 +17,50 @@
         initRepeatables(form);
         initLanguages(form);
         initServiceCalc(form);
+        initEnclosures(form);
         initAge(form);
         initSignature(form);
         initLiveErrorClearing(form);
         initWizard(form, steps);
     });
+
+    function initProfileMenu() {
+        var toggle = document.querySelector('[data-profile-toggle]');
+        var menu = document.querySelector('[data-profile-menu]');
+        if (!toggle || !menu) return;
+        function close() { menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
+        toggle.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var willOpen = menu.hidden;
+            menu.hidden = !willOpen;
+            toggle.setAttribute('aria-expanded', String(willOpen));
+        });
+        document.addEventListener('click', function (e) {
+            if (!menu.hidden && !menu.contains(e.target) && !toggle.contains(e.target)) close();
+        });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    }
+
+    function initEnclosures(form) {
+        var items = Array.prototype.slice.call(form.querySelectorAll('[data-encl-source]'));
+        if (!items.length) return;
+        function sync() {
+            items.forEach(function (li) {
+                var input = form.querySelector('input[type="file"][name="' + li.getAttribute('data-encl-source') + '"]');
+                var has = !!(input && input.files && input.files.length);
+                var cb = li.querySelector('[data-encl-auto]');
+                var status = li.querySelector('[data-encl-status]');
+                if (cb) cb.checked = has;
+                if (status) {
+                    status.textContent = has ? '✓ Uploaded' : 'Upload pending';
+                    status.className = 'encl-status ' + (has ? 'is-ok' : 'is-pending');
+                }
+            });
+        }
+        form.addEventListener('change', function (e) { if (e.target && e.target.type === 'file') sync(); });
+        form._syncEnclosures = sync;
+        sync();
+    }
 
     function initNavbar() {
         var nav = document.getElementById('navbar');
@@ -124,7 +164,7 @@
             var isImage = group.getAttribute('data-image') === '1';
 
             function clearErr() { if (err) { err.textContent = ''; err.classList.remove('show'); } group.classList.remove('is-invalid'); }
-            function showErr(m) { if (err) { err.textContent = m; err.classList.add('show'); } }
+            function showErr(m) { if (err) { err.textContent = m; err.classList.add('show'); } group.classList.add('is-invalid'); toast(m, 'error'); }
             function reset() {
                 input.value = '';
                 group.classList.remove('has-file');
@@ -188,7 +228,7 @@
 
             function complete() { return Array.prototype.every.call(fields, function (f) { return f.value.trim() !== ''; }); }
             function clearErr() { if (err) { err.textContent = ''; err.classList.remove('show'); } wrap.classList.remove('is-invalid'); }
-            function showErr(m) { if (err) { err.textContent = m; err.classList.add('show'); } wrap.classList.add('is-invalid'); }
+            function showErr(m) { if (err) { err.textContent = m; err.classList.add('show'); } wrap.classList.add('is-invalid'); toast(m, 'error'); }
             function resetFile() { input.value = ''; fileBox.hidden = true; nameEl.textContent = ''; }
             function sync() {
                 var ok = complete();
@@ -377,6 +417,11 @@
         var eu = el.closest('[data-edu-upload]'); if (eu) eu.classList.remove('is-invalid');
         var grid = el.closest('[data-validate-radio], [data-validate-checkbox]');
         if (grid) grid.classList.remove('is-invalid');
+        if (el.closest('[data-repeat="languages"]')) {
+            var lrow = el.closest('.lang-row'); if (lrow) lrow.classList.remove('lang-row--invalid');
+            var lerr = document.querySelector('.f-error[data-error-for="languages[0][name]"]');
+            if (lerr) { lerr.textContent = ''; lerr.classList.remove('show'); }
+        }
         var name = el.name.replace('[]', '');
         var err = document.querySelector('.f-error[data-error-for="' + name + '"]');
         if (err) { err.textContent = ''; err.classList.remove('show'); }
@@ -407,6 +452,7 @@
             if (bar) bar.style.width = ((i + 1) / steps.length * 100) + '%';
             if (curEl) curEl.textContent = i + 1;
             if (nameEl) nameEl.textContent = labelOf(i);
+            if (steps[i].getAttribute('data-step-id') === 'enclosures' && form._syncEnclosures) form._syncEnclosures();
             if (steps[i].getAttribute('data-step-id') === 'preview') renderPreview(form);
             var card = document.querySelector('.wizard-card');
             if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -466,6 +512,23 @@
                 g.classList.add('is-invalid'); ok = false; firstBad = firstBad || g;
             }
         });
+        var langTable = stepEl.querySelector('[data-repeat="languages"]');
+        if (langTable) {
+            var langBad = false;
+            langTable.querySelectorAll('.lang-row:not(.lang-row--head)').forEach(function (row) {
+                var nm = row.querySelector('[data-lang-name]');
+                if (nm && nm.value.trim() && !row.querySelector('.skill-chip input:checked')) {
+                    row.classList.add('lang-row--invalid'); langBad = true;
+                } else {
+                    row.classList.remove('lang-row--invalid');
+                }
+            });
+            if (langBad) {
+                setError(stepEl, 'languages[0][name]', 'Select at least one skill (R / W / S / U) for each language you have entered.');
+                ok = false; firstBad = firstBad || langTable;
+            }
+        }
+
         stepEl.querySelectorAll('input, select, textarea').forEach(function (f) {
             if (f.type === 'radio') return;
             if (f.type === 'checkbox') {
@@ -633,7 +696,7 @@
             }
         });
         if (!rows) return '<p class="pv-item__value is-empty">No qualifications entered.</p>';
-        return '<table class="pv-table"><thead><tr><th>Degree</th><th>Subjects</th><th>Institution</th><th>Month/Year</th><th>Marks</th><th>Mark sheet</th></tr></thead><tbody>' + rows + '</tbody></table>';
+        return '<div class="pv-scroll"><table class="pv-table"><thead><tr><th>Degree</th><th>Subjects</th><th>Institution</th><th>Month/Year</th><th>Marks</th><th>Mark sheet</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
     function serviceTable(form) {
         var rows = '';
@@ -647,7 +710,7 @@
             }
         });
         if (!rows) return '';
-        return '<table class="pv-table"><thead><tr><th>Designation</th><th>Institution</th><th>From</th><th>To</th><th>Total</th></tr></thead><tbody>' + rows + '</tbody></table>';
+        return '<div class="pv-scroll"><table class="pv-table"><thead><tr><th>Designation</th><th>Institution</th><th>From</th><th>To</th><th>Total</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
     function projectsTable(form) {
         var rows = '';
@@ -658,7 +721,7 @@
             if (title.trim()) rows += '<tr><td>' + esc(title) + '</td><td>' + esc(status) + '</td></tr>';
         });
         if (!rows) return '';
-        return '<table class="pv-table" style="margin-bottom:12px"><thead><tr><th>Project / Start-up / Event</th><th>Outcome</th></tr></thead><tbody>' + rows + '</tbody></table>';
+        return '<div class="pv-scroll" style="margin-bottom:12px"><table class="pv-table"><thead><tr><th>Project / Start-up / Event</th><th>Outcome</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
     function aspirations(form) {
         var arr = Array.prototype.map.call(form.querySelectorAll('input[name="career_aspirations[]"]:checked'), function (c) { return c.value; });
@@ -686,6 +749,7 @@
             rows.map(function (p) { return '<li>' + esc(p[0]) + ': <strong>' + esc(p[1]) + '</strong></li>'; }).join('') + '</ul>';
     }
 
+    function toast(message, type) { if (window.rguToast) window.rguToast(message, type); }
     function formatSize(b) {
         if (b < 1024) return b + ' B';
         if (b < 1048576) return (b / 1024).toFixed(0) + ' KB';

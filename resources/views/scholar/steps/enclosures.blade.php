@@ -11,14 +11,25 @@
         or those without the necessary supporting documents, will be rejected and no interim correspondence will be entertained.
     </div>
 
+    <p class="f-hint" style="margin-bottom:10px">
+        These tick automatically from the documents you uploaded in the earlier steps. Any item marked
+        <strong>Upload pending</strong> must be uploaded in its step before you continue. Tick the foreign-degree item manually if it applies to you.
+    </p>
     <ul class="encl-list">
         @foreach ($data['enclosures'] as $item)
-            <li class="encl-list__item @if($item['pt_only']) js-pt-only @endif" @if($item['pt_only']) data-pt-only hidden @endif>
+            @php $manual = empty($item['source']); @endphp
+            <li class="encl-list__item @if($item['pt_only']) js-pt-only @endif"
+                @if($item['pt_only']) data-pt-only hidden @endif
+                @if(! $manual) data-encl-source="{{ $item['source'] }}" @endif>
                 <label class="inline-check inline-check--block">
-                    <input type="checkbox" name="enclosures[{{ $item['key'] }}]" value="1">
+                    <input type="checkbox" name="enclosures[{{ $item['key'] }}]" value="1"
+                           @if(! $manual) data-encl-auto disabled @endif>
                     <span>{{ $item['label'] }}</span>
                     @if ($item['pt_only'])<span class="badge-pt">Part-Time</span>@endif
                 </label>
+                @unless ($manual)
+                    <span class="encl-status" data-encl-status></span>
+                @endunless
             </li>
         @endforeach
     </ul>
