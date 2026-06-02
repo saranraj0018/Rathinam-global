@@ -1,6 +1,3 @@
-{{-- STEP 7 — List of Enclosures
-     Backend field names: enclosures[<key>] (checklist), noc_document (file, PT),
-       service_certificate (file, PT), equivalence_cert (file), enclosures_confirm --}}
 <section class="wizard-step" data-step="6" data-step-id="enclosures" hidden>
     <div class="step-head">
         <span class="step-kicker">Enclosures</span>
@@ -14,7 +11,6 @@
         or those without the necessary supporting documents, will be rejected and no interim correspondence will be entertained.
     </div>
 
-    {{-- Checklist --}}
     <ul class="encl-list">
         @foreach ($data['enclosures'] as $item)
             <li class="encl-list__item @if($item['pt_only']) js-pt-only @endif" @if($item['pt_only']) data-pt-only hidden @endif>
@@ -27,40 +23,30 @@
         @endforeach
     </ul>
 
-    {{-- Part-Time required uploads --}}
     <div class="js-pt-only" data-pt-only hidden>
         <div class="callout callout--info mt-2">
             <strong>Part-Time applicants</strong>
-            The following are mandatory for Part-Time Ph.D. A blank NOC format is shown below for your employer.
+            NOC and Service Certificate are mandatory. Download the NOC format, get it signed &amp; sealed by your employer, then upload it.
         </div>
         <div class="grid gap-5 sm:grid-cols-2">
-            <x-upload name="noc_document" label="No Objection Certificate (NOC)" required data-conditional />
+            <div>
+                <x-upload name="noc_document" label="No Objection Certificate (NOC)" required data-conditional />
+                <a href="{{ asset('downloads/noc-format.pdf') }}" download class="noc-download">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Download NOC format (PDF)
+                </a>
+            </div>
             <x-upload name="service_certificate" label="Service Certificate" required data-conditional />
         </div>
-
-        {{-- NOC reference format (printable) --}}
-        <details class="noc-format">
-            <summary>View NOC format</summary>
-            <div class="noc-format__body">
-                <p class="noc-format__title">NO OBJECTION CERTIFICATE (NOC)</p>
-                <p>This is to certify that Mr./ Ms. <span class="noc-blank"></span> is employed as
-                    <span class="noc-blank"></span> in the Department / Division / Section / Unit of
-                    <span class="noc-blank"></span> at this College / School / Polytechnic / Institute / Industry / Company.
-                    This organization has no objection in permitting him/her to pursue the Ph.D. Programme under the
-                    Part-Time category at Rathinam Global University.</p>
-                <div class="noc-format__sign">
-                    <span>Date: ____________<br>Place: ____________</span>
-                    <span>Signature of the Employer with Office Seal</span>
-                </div>
-            </div>
-        </details>
     </div>
 
-    {{-- Foreign degree --}}
     <x-upload name="equivalence_cert" label="Equivalence Certificate — foreign degree (optional)"
               hint="If applicable. To be produced at the time of admission · PDF/JPG/PNG · max 2 MB" />
 
-    {{-- Final confirmation --}}
     <label class="confirm-box">
         <input type="checkbox" name="enclosures_confirm" value="1" required>
         <span>I confirm that my application is complete and all applicable self-attested documents have been enclosed.</span>

@@ -1,5 +1,3 @@
-{{-- STEP 9 — Preview & submit. #preview-doc is rendered by scholar.js from the
-     live form values when the applicant reaches this step. --}}
 <section class="wizard-step" data-step="8" data-step-id="preview" hidden>
     <div class="step-head">
         <span class="step-kicker">Almost done</span>

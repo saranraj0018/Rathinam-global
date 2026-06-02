@@ -22,15 +22,15 @@
 return [
 
     'programme_modes' => [
-        'FT'         => 'Full-Time (FT)',
-        'FT-Startup' => 'Full-Time (Start-up)',
-        'PT'         => 'Part-Time (PT)',
-        'Integrated' => 'Integrated',
+        'FT'         => 'Full Time',
+        'FT-Startup' => 'Startup Based Ph.D',
+        'PT'         => 'Part Time',
+        'Integrated' => 'Integrated PG + Ph.D',
     ],
 
     'genders' => ['Male', 'Female', 'Transgender'],
 
-    'language_skills' => ['R' => 'Read', 'W' => 'Write', 'S' => 'Speak'],
+    'language_skills' => ['R' => 'Read', 'W' => 'Write', 'S' => 'Speak', 'U' => 'Understand'],
 
     'communities' => ['OC', 'EWS', 'BC', 'BCM', 'MBC', 'DNC', 'SC', 'SCA', 'ST'],
 

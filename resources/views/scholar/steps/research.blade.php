@@ -1,7 +1,3 @@
-{{-- STEP 6 — Projects, mandatory courses, career aspirations, focus summary
-     Backend field names: projects[i][title|status],
-       course_research_methodology (Yes/No), course_publication_ethics (Yes/No),
-       career_aspirations[] , career_other, summary_document (file) --}}
 <section class="wizard-step" data-step="5" data-step-id="research" hidden>
     <div class="step-head">
         <span class="step-kicker">Research Profile</span>

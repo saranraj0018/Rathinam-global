@@ -1,6 +1,3 @@
-{{-- STEP 4 — Eligibility for Ph.D. admission
-     Backend field names: eligibility_qualified (Yes/No), eligibility_exam,
-       eligibility_cert (file) --}}
 <section class="wizard-step" data-step="3" data-step-id="eligibility" hidden>
     <div class="step-head">
         <span class="step-kicker">Eligibility</span>

@@ -1,6 +1,3 @@
-{{-- STEP 8 — Declaration & signature
-     Backend field names: declaration_agree, declaration_date,
-       declaration_station, declaration_signature (typed name) --}}
 <section class="wizard-step" data-step="7" data-step-id="declaration" hidden>
     <div class="step-head">
         <span class="step-kicker">Declaration</span>
