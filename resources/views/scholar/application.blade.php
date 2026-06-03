@@ -59,7 +59,7 @@
             </div>
 
             {{-- ── The form ────────────────────────────────────────── --}}
-            <form id="scholar-form" action="{{ route('scholar.store') }}" method="POST"
+            <form id="scholar-form" action="{{ route('scholar.submit') }}" method="POST"
                   enctype="multipart/form-data" novalidate>
                 @csrf
 

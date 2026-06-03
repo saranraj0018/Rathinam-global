@@ -25,7 +25,31 @@
         <div class="grid gap-5 sm:grid-cols-2">
             <x-select-field name="eligibility_exam" label="Which examination?" required :options="$data['eligibility_exams']"
                             hint="SLET / SET / UGC-NET / CSIR-NET / GATE / etc." />
-            <x-upload name="eligibility_cert" label="Self-attested copy of qualifying score" required data-conditional />
+            @php
+    // A file already exists for this field?  Adjust source to match your view.
+    $eligUploaded = !empty($draft['files']['eligibility_certificate']['url'] ?? null);
+@endphp
+
+<div class="f-group">
+    <label class="f-label">Self-attested copy of qualifying score <span class="f-req">*</span></label>
+
+    <div class="saved-file-preview" id="saved-eligibility_certificate" @unless($eligUploaded) hidden @endunless>
+        <div class="saved-file-box">
+            <div class="saved-file-info">
+                <span class="saved-file-name" data-saved-name="eligibility_certificate">
+                    {{ $draft['files']['eligibility_certificate']['name'] ?? '' }}
+                </span>
+                <a class="saved-file-link" data-saved-url="eligibility_certificate"
+                   target="_blank" href="{{ $draft['files']['eligibility_certificate']['url'] ?? '#' }}">View uploaded file</a>
+            </div>
+            <span class="saved-file-badge">Already uploaded</span>
+        </div>
+        <p class="f-hint">Re-upload below to replace the existing file.</p>
+    </div>
+
+    {{-- required ONLY when no file has been uploaded yet --}}
+    <x-upload name="eligibility_certificate" label="" :required="!$eligUploaded" data-conditional />
+</div>
         </div>
     </div>
 

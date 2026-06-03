@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth' => \App\Http\Middleware\Authenticate::class,
             'verify.jwt' => \App\Http\Middleware\VerifyJwt::class,
             'admin' => \App\Http\Middleware\AdminRedirect::class,
+            'user' => \App\Http\Middleware\UserRedirect::class,
             'guest' => \App\Http\Middleware\Guest::class,
         ]);
     })

@@ -10,7 +10,7 @@ class PaymentController extends Controller
 {
     public function index()
     {
-        $student = Auth::guard('student')->user();
+        $user = Auth::guard('user')->user();
         $slotId  = session('selected_slot_id');
 
         if (!$slotId) {
@@ -18,9 +18,7 @@ class PaymentController extends Controller
                 ->with('error', 'Please select a slot first.');
         }
 
-        $slot = Slot::with('exam')->findOrFail($slotId);
-        $payment = Payment::where('student_id', $student->id)
-            ->where('slot_id', $slotId)
+         $payment = Payment::where('application_id', $user->id)
             ->where('status', 'pending')
             ->latest()
             ->first();
@@ -29,15 +27,12 @@ class PaymentController extends Controller
             $payment = Payment::create([
                 'order_id' => $orderId,
                 'amount'   => 1,
-                'exam_id'  => $slot->exam->id,
-                'slot_id'  => $slot->id,
-                'student_id'  => $student->id,
+                'application_id'  => $user->id,
                 'status'   => 'pending',
                 'type'     => 'exam',
             ]);
         }
 
-        $this->data['slot']     = $slot;
         $this->data['order_id'] = $payment->order_id;
 
         return view('frontend.payment')->with($this->data);
@@ -50,13 +45,13 @@ class PaymentController extends Controller
         ]);
 
         $payment = Payment::where('order_id', $request->order_id)->first();
-        $student = Auth::guard('student')->user();
+        $user = Auth::guard('user')->user();
 
         $mode = str_contains(config('services.cashfree.base_url'), 'sandbox')
             ? 'sandbox'
             : 'production';
 
-        $phone = preg_replace('/\D/', '', $student->phone ?? '9999999999');
+        $phone = preg_replace('/\D/', '', $user->phone ?? '9999999999');
         if (strlen($phone) === 12 && str_starts_with($phone, '91')) {
             $phone = substr($phone, 2);
         }
@@ -80,9 +75,9 @@ class PaymentController extends Controller
             "order_amount"   => (float) number_format($payment->amount, 2, '.', ''),
             "order_currency" => "INR",
             "customer_details" => [
-                "customer_id"    => "STU_" . (string) $student->id,
-                "customer_name"  => $student->full_name ?? "Student",
-                "customer_email" => $student->email     ?? "student@example.com",
+                "customer_id"    => "STU_" . (string) $user->id,
+                "customer_name"  => $user->full_name ?? "Student",
+                "customer_email" => $user->email     ?? "student@example.com",
                 "customer_phone" => $phone,
             ],
             "order_meta" => [
@@ -143,8 +138,8 @@ class PaymentController extends Controller
                     'transaction_id' => $data['data']['payment']['cf_payment_id'] ?? null,
                 ]);
 
-                $student = \App\Models\Student::find($payment->user_id);
-                if ($student) {
+                $user = \App\Models\User::find($payment->user_id);
+                if ($user) {
                     SlotBooking::firstOrCreate(
                         [
                             'student_id' => $student->id,

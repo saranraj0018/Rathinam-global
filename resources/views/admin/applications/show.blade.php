@@ -2,317 +2,275 @@
 @extends('admin.app')
 @section('title', $application->application_no)
 
-@push('styles')
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script>
-    tailwind.config = {
-        theme: {
-            extend: {
-                colors: {
-                    bg:       '#f4f2f8',
-                    surface:  '#ffffff',
-                    surface2: '#f7f6fb',
-                    line:     '#ece9f2',
-                    text:     '#181423',
-                    muted:    '#736e82',
-                    accent:   '#7c3aed',
-                    accent2:  '#9d5cf5',
-                    'brand-ink': '#1c1530',
-                    'st-green':  '#16a34a',
-                    'st-blue':   '#2563eb',
-                    'st-amber':  '#d97706',
-                    'st-red':    '#dc2626',
-                },
-                fontFamily: {
-                    sans:    ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-                    display: ['Fraunces', 'Georgia', 'serif'],
-                    mono:    ['ui-monospace', 'SFMono-Regular', 'monospace'],
-                },
-                boxShadow: {
-                    card: '0 1px 2px rgba(28,21,48,.04), 0 8px 24px -12px rgba(28,21,48,.12)',
-                    pop:  '0 12px 40px -12px rgba(124,58,237,.35)',
-                },
-                keyframes: {
-                    fade: { from: { opacity: '0', transform: 'translateY(6px)' }, to: { opacity: '1', transform: 'none' } },
-                },
-                animation: { fade: 'fade .22s ease-out' },
-            },
-        },
-    };
-</script>
-@endpush
-
 @section('content')
 @php
     $statuses = ['draft'=>'Draft','submitted'=>'Submitted','under_review'=>'Under Review','approved'=>'Approved','rejected'=>'Rejected'];
-    $badgeClasses = [
-        'draft'        => 'bg-white/15 text-white ring-1 ring-inset ring-white/25',
-        'submitted'    => 'bg-st-blue/20 text-white ring-1 ring-inset ring-st-blue/40',
-        'under_review' => 'bg-st-amber/20 text-white ring-1 ring-inset ring-st-amber/40',
-        'approved'     => 'bg-st-green/25 text-white ring-1 ring-inset ring-st-green/50',
-        'rejected'     => 'bg-st-red/25 text-white ring-1 ring-inset ring-st-red/50',
+    $badge = [
+        'draft'        => 'bg-fmuted/10 text-[#a3a9bb]',
+        'submitted'    => 'bg-[#6b9bf2]/10 text-[#6b9bf2]',
+        'under_review' => 'bg-[#e0a94a]/10 text-[#e0a94a]',
+        'approved'     => 'bg-[#46c08a]/10 text-[#46c08a]',
+        'rejected'     => 'bg-[#e87878]/10 text-[#e87878]',
     ];
     $projStatus = [
-        'completed'    => 'bg-st-green/10 text-st-green ring-1 ring-inset ring-st-green/20',
-        'won'          => 'bg-accent/10 text-accent ring-1 ring-inset ring-accent/20',
-        'participated' => 'bg-st-blue/10 text-st-blue ring-1 ring-inset ring-st-blue/20',
-        'pending'      => 'bg-muted/10 text-muted ring-1 ring-inset ring-muted/20',
+        'completed'    => 'bg-[#46c08a]/10 text-[#46c08a]',
+        'won'          => 'bg-gold/[.16] text-gold2',
+        'participated' => 'bg-[#6b9bf2]/10 text-[#6b9bf2]',
+        'pending'      => 'bg-fmuted/10 text-[#a3a9bb]',
     ];
     $app = $application;
 @endphp
 
-<div class="font-sans bg-bg text-text min-h-screen text-sm">
+<div x-data="{ tab: 'profile' }"
+     class="min-h-screen bg-ink text-ftext font-sans text-sm
+            [background-image:radial-gradient(1100px_circle_at_88%_-8%,rgba(201,163,90,.10),transparent_42%),radial-gradient(900px_circle_at_-5%_4%,rgba(107,155,242,.07),transparent_40%)]">
 
-    {{-- ───────────── Hero header (aubergine band) ───────────── --}}
-    <div class="relative overflow-hidden bg-brand-ink text-white
-                [background-image:radial-gradient(800px_circle_at_15%_-50%,rgba(157,92,245,.45),transparent_55%),radial-gradient(600px_circle_at_95%_-20%,rgba(34,197,94,.16),transparent_50%)]">
-        <header class="relative flex items-center gap-3.5 px-8 pt-6 pb-12">
-            <a href="{{ route('applications') }}"
-               class="grid place-items-center w-10 h-10 rounded-full bg-white/[.08] ring-1 ring-inset ring-white/15 text-white/80 no-underline
-                      transition-colors hover:bg-white/[.16] hover:text-white">←</a>
-            <div class="flex-1">
-                <span class="font-mono text-xs text-accent2">{{ $app->application_no }}</span>
-                <h2 class="font-display text-3xl font-semibold mt-0.5 mb-0 tracking-tight">{{ $app->full_name }}</h2>
-            </div>
-            <span class="inline-flex items-center gap-[5px] px-3.5 py-1.5 rounded-full text-xs font-semibold backdrop-blur-sm
-                         {{ $badgeClasses[$app->status] ?? $badgeClasses['draft'] }}">
-                {{ $statuses[$app->status] ?? $app->status }}
-            </span>
-        </header>
-    </div>
+    {{-- Header --}}
+    <header class="sticky top-0 z-20 flex items-center gap-3.5 px-8 py-[18px]
+                   border-b border-line bg-surface/60 backdrop-blur-xl">
+        <a href="{{ route('applications') }}"
+           class="grid place-items-center w-10 h-10 rounded-[11px] bg-surface2 border border-line2 text-fmuted no-underline
+                  transition hover:text-gold2 hover:border-gold shrink-0">←</a>
+        <div class="flex-1 min-w-0">
+            <span class="font-mono text-[12.5px] text-gold2">{{ $app->application_no }}</span>
+            <h2 class="font-display text-[26px] font-semibold tracking-tight mt-0.5 mb-0">{{ $app->full_name }}</h2>
+        </div>
+        <span class="inline-flex items-center gap-1.5 px-[13px] py-1.5 rounded-[9px] text-xs font-bold whitespace-nowrap
+                     before:content-[''] before:w-[7px] before:h-[7px] before:rounded-full before:bg-current
+                     {{ $badge[$app->status] ?? $badge['draft'] }}">
+            {{ $statuses[$app->status] ?? $app->status }}
+        </span>
+    </header>
 
-    {{-- ───────────── Content card lifts over hero ───────────── --}}
-    <div class="px-4 sm:px-8 -mt-6 pb-16 relative">
-        <div class="bg-surface rounded-[20px] border border-line shadow-card overflow-hidden">
+    {{-- Tabs --}}
+    <nav class="flex gap-1 px-6 border-b border-line bg-ink2 overflow-x-auto">
+        @php
+            $tabs = ['profile'=>'Profile','education'=>'Education','experience'=>'Experience','extras'=>'Projects & Skills','documents'=>'Documents'];
+        @endphp
+        @foreach($tabs as $key => $label)
+            <button @click="tab = '{{ $key }}'"
+                    :class="tab === '{{ $key }}'
+                        ? 'text-gold2 after:opacity-100'
+                        : 'text-fmuted hover:text-ftext after:opacity-0'"
+                    class="relative bg-transparent border-0 px-4 py-[15px] text-[13px] font-semibold cursor-pointer
+                           inline-flex items-center gap-[7px] whitespace-nowrap transition-colors
+                           after:content-[''] after:absolute after:left-3 after:right-3 after:-bottom-px after:h-[2.5px] after:rounded-full
+                           after:bg-gradient-to-r after:from-gold after:to-gold2 after:transition-opacity">
+                {{ $label }}
+                @if($key === 'documents')
+                    <span class="bg-surface2 border border-line2 px-[7px] py-px rounded-md text-[11px] font-bold">{{ $app->documents->count() }}</span>
+                @endif
+            </button>
+        @endforeach
+    </nav>
 
-            {{-- Tabs --}}
-            <nav class="flex gap-1 px-4 sm:px-6 border-b border-line overflow-x-auto">
-                @php
-                    $tabs = [
-                        'profile'    => 'Profile',
-                        'education'  => 'Education',
-                        'experience' => 'Experience',
-                        'extras'     => 'Projects & Skills',
-                        'documents'  => 'Documents',
-                    ];
-                @endphp
-                @foreach($tabs as $key => $label)
-                    <button data-tab="{{ $key }}"
-                            class="dtab relative bg-transparent border-none text-muted px-4 py-4
-                                   text-[13px] font-semibold cursor-pointer flex items-center gap-[7px] whitespace-nowrap transition-colors
-                                   hover:text-text
-                                   data-[active=true]:text-accent
-                                   after:content-[''] after:absolute after:left-3 after:right-3 after:-bottom-px after:h-[2.5px] after:rounded-full
-                                   after:bg-gradient-to-r after:from-accent after:to-accent2 after:opacity-0
-                                   data-[active=true]:after:opacity-100"
-                            @if($key === 'profile') data-active="true" @endif>
-                        {{ $label }}
-                        @if($key === 'documents')
-                            <span class="bg-surface2 ring-1 ring-inset ring-line px-[7px] py-px rounded-full text-[11px] font-bold">{{ $app->documents->count() }}</span>
-                        @endif
-                    </button>
-                @endforeach
-            </nav>
+    <div class="px-8 pt-7 pb-[60px] max-w-[920px]">
 
-            <div class="px-6 sm:px-8 pt-7 pb-10 max-w-[920px]">
+        {{-- PROFILE --}}
+        <div x-show="tab === 'profile'" x-transition.opacity.duration.200ms>
+            @php
+                $personal = [
+                    'Full Name'        => $app->full_name,
+                    'Date of Birth'    => optional($app->dob)->format('d M Y').' ('.$app->age.' yrs)',
+                    'Gender'           => $app->gender,
+                    'Nationality'      => $app->nationality,
+                    'Religion'         => $app->religion,
+                    'Community'        => $app->community ?? '—',
+                    "Father's Name"    => $app->father_name,
+                    "Mother's Name"    => $app->mother_name,
+                    'Single Girl Child'=> $app->single_girl_child ? 'Yes' : 'No',
+                    'Differently Abled'=> $app->differently_abled ? 'Yes' : 'No',
+                ];
+                $programme = [
+                    'Specialization' => $app->specialization ?? $app->specialization_other ?? '—',
+                    'Mode'           => $app->programme_mode === 'full_time' ? 'Full Time' : 'Part Time',
+                    'School ID'      => $app->school_id ?? '—',
+                    'Discipline ID'  => $app->discipline_id ?? '—',
+                    'Eligibility'    => $app->eligibility_qualified ? 'Qualified ('.($app->eligibility_exam ?? '—').')' : 'Not Qualified',
+                    'Submitted At'   => optional($app->submitted_at)->format('d M Y, h:i A') ?? 'Not submitted',
+                ];
+            @endphp
 
-                {{-- PROFILE --}}
-                <div class="pane animate-fade" data-pane="profile">
-                    <x-section title="Personal Details">
-                        @php
-                            $personal = [
-                                'Full Name'        => $app->full_name,
-                                'Date of Birth'    => optional($app->dob)->format('d M Y') . ' (' . $app->age . ' yrs)',
-                                'Gender'           => $app->gender,
-                                'Nationality'      => $app->nationality,
-                                'Religion'         => $app->religion,
-                                'Community'        => $app->community ?? '—',
-                                "Father's Name"    => $app->father_name,
-                                "Mother's Name"    => $app->mother_name,
-                                'Single Girl Child'=> $app->single_girl_child ? 'Yes' : 'No',
-                                'Differently Abled'=> $app->differently_abled ? 'Yes' : 'No',
-                            ];
-                        @endphp
-                        <div class="grid grid-cols-2 gap-x-6 gap-y-4">
-                            @foreach($personal as $label => $value)
-                                <x-field :label="$label" :value="$value" />
+            <section class="mb-[30px]">
+                <h3 class="text-xs font-bold text-gold2 uppercase tracking-[.08em] m-0 mb-4 pb-2.5 border-b border-line">Personal Details</h3>
+                <div class="grid grid-cols-2 gap-x-[26px] gap-y-4">
+                    @foreach($personal as $k => $v)
+                        <div class="flex flex-col gap-[5px]">
+                            <span class="text-[11px] uppercase tracking-[.06em] text-fmuted font-semibold">{{ $k }}</span>
+                            <span class="text-sm font-medium text-ftext">{{ filled($v) ? $v : '—' }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            </section>
+
+            <section class="mb-[30px]">
+                <h3 class="text-xs font-bold text-gold2 uppercase tracking-[.08em] m-0 mb-4 pb-2.5 border-b border-line">Programme</h3>
+                <div class="grid grid-cols-2 gap-x-[26px] gap-y-4">
+                    @foreach($programme as $k => $v)
+                        <div class="flex flex-col gap-[5px]">
+                            <span class="text-[11px] uppercase tracking-[.06em] text-fmuted font-semibold">{{ $k }}</span>
+                            <span class="text-sm font-medium text-ftext">{{ filled($v) ? $v : '—' }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            </section>
+
+            <section class="mb-[30px]">
+                <h3 class="text-xs font-bold text-gold2 uppercase tracking-[.08em] m-0 mb-4 pb-2.5 border-b border-line">Contact</h3>
+                <div class="grid grid-cols-2 gap-x-[26px] gap-y-4">
+                    <div class="flex flex-col gap-[5px]"><span class="text-[11px] uppercase tracking-[.06em] text-fmuted font-semibold">Mobile</span><span class="text-sm font-medium">{{ $app->mobile }}</span></div>
+                    <div class="flex flex-col gap-[5px]"><span class="text-[11px] uppercase tracking-[.06em] text-fmuted font-semibold">Email</span><span class="text-sm font-medium">{{ $app->email }}</span></div>
+                    <div class="flex flex-col gap-[5px] col-span-2"><span class="text-[11px] uppercase tracking-[.06em] text-fmuted font-semibold">Current Address</span><span class="text-sm font-medium">{{ $app->address_current }}</span></div>
+                    <div class="flex flex-col gap-[5px] col-span-2"><span class="text-[11px] uppercase tracking-[.06em] text-fmuted font-semibold">Permanent Address</span><span class="text-sm font-medium">{{ $app->address_same ? 'Same as current' : $app->address_permanent }}</span></div>
+                </div>
+            </section>
+
+            <section class="mb-[30px]">
+                <h3 class="text-xs font-bold text-gold2 uppercase tracking-[.08em] m-0 mb-4 pb-2.5 border-b border-line">Languages</h3>
+                @if($app->languages->isEmpty())
+                    <p class="text-fmuted text-[13px] italic py-1">No records available.</p>
+                @else
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="[&>th]:text-left [&>th]:text-[11px] [&>th]:uppercase [&>th]:tracking-[.06em] [&>th]:text-fmuted [&>th]:font-bold [&>th]:px-3 [&>th]:py-2.5 [&>th]:border-b [&>th]:border-line">
+                                <th>Language</th><th class="!text-center">Read</th><th class="!text-center">Write</th><th class="!text-center">Speak</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($app->languages as $l)
+                                <tr class="[&>td]:px-3 [&>td]:py-[11px] [&>td]:border-b [&>td]:border-line [&>td]:text-[13px]">
+                                    <td class="font-medium">{{ $l->language }}</td>
+                                    <td class="text-center {{ $l->can_read ? 'text-[#46c08a]' : 'text-[#5f6477]' }}">{{ $l->can_read ? '✓' : '—' }}</td>
+                                    <td class="text-center {{ $l->can_write ? 'text-[#46c08a]' : 'text-[#5f6477]' }}">{{ $l->can_write ? '✓' : '—' }}</td>
+                                    <td class="text-center {{ $l->can_speak ? 'text-[#46c08a]' : 'text-[#5f6477]' }}">{{ $l->can_speak ? '✓' : '—' }}</td>
+                                </tr>
                             @endforeach
-                        </div>
-                    </x-section>
+                        </tbody>
+                    </table>
+                @endif
+            </section>
+        </div>
 
-                    <x-section title="Programme">
-                        @php
-                            $programme = [
-                                'Specialization' => $app->specialization ?? $app->specialization_other ?? '—',
-                                'Mode'           => $app->programme_mode === 'full_time' ? 'Full Time' : 'Part Time',
-                                'School ID'      => $app->school_id ?? '—',
-                                'Discipline ID'  => $app->discipline_id ?? '—',
-                                'Eligibility'    => $app->eligibility_qualified ? 'Qualified ('.($app->eligibility_exam ?? '—').')' : 'Not Qualified',
-                                'Submitted At'   => optional($app->submitted_at)->format('d M Y, h:i A') ?? 'Not submitted',
-                            ];
-                        @endphp
-                        <div class="grid grid-cols-2 gap-x-6 gap-y-4">
-                            @foreach($programme as $label => $value)
-                                <x-field :label="$label" :value="$value" />
-                            @endforeach
-                        </div>
-                    </x-section>
-
-                    <x-section title="Contact">
-                        <div class="grid grid-cols-2 gap-x-6 gap-y-4">
-                            <x-field label="Mobile" :value="$app->mobile" />
-                            <x-field label="Email" :value="$app->email" />
-                            <div class="col-span-2"><x-field label="Current Address" :value="$app->address_current" /></div>
-                            <div class="col-span-2"><x-field label="Permanent Address" :value="$app->address_same ? 'Same as current' : $app->address_permanent" /></div>
-                        </div>
-                    </x-section>
-
-                    <x-section title="Languages" :last="true">
-                        @if($app->languages->isEmpty())
-                            <x-empty />
-                        @else
-                            <table class="w-full border-collapse">
-                                <thead>
-                                    <tr class="[&>th]:text-left [&>th]:text-[11px] [&>th]:uppercase [&>th]:tracking-[.06em] [&>th]:text-muted [&>th]:font-bold [&>th]:px-3 [&>th]:py-2.5 [&>th]:border-b [&>th]:border-line">
-                                        <th>Language</th><th class="!text-center">Read</th><th class="!text-center">Write</th><th class="!text-center">Speak</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($app->languages as $l)
-                                        <tr class="[&>td]:px-3 [&>td]:py-2.5 [&>td]:border-b [&>td]:border-line [&>td]:text-[13px]">
-                                            <td class="font-medium">{{ $l->language }}</td>
-                                            <td class="text-center {{ $l->can_read ? 'text-st-green' : 'text-muted/50' }}">{{ $l->can_read ? '✓' : '—' }}</td>
-                                            <td class="text-center {{ $l->can_write ? 'text-st-green' : 'text-muted/50' }}">{{ $l->can_write ? '✓' : '—' }}</td>
-                                            <td class="text-center {{ $l->can_speak ? 'text-st-green' : 'text-muted/50' }}">{{ $l->can_speak ? '✓' : '—' }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        @endif
-                    </x-section>
-                </div>
-
-                {{-- EDUCATION --}}
-                <div class="pane hidden" data-pane="education">
-                    <x-section title="Educational Qualifications" :last="true">
-                        @if($app->educations->isEmpty())
-                            <x-empty />
-                        @else
-                            <div class="pl-1">
-                                @foreach($app->educations as $e)
-                                    <x-timeline-item :last="$loop->last"
-                                        :title="$e->education_level" :badge="$e->marks"
-                                        :sub="$e->institution.' · '.$e->subjects"
-                                        :date="optional($e->passing_date)->format('d M Y')" />
-                                @endforeach
-                            </div>
-                        @endif
-                    </x-section>
-                </div>
-
-                {{-- EXPERIENCE --}}
-                <div class="pane hidden" data-pane="experience">
-                    <x-section title="Service Summary">
-                        <div class="grid grid-cols-2 gap-x-6 gap-y-4">
-                            <x-field label="Total Service" :value="$app->total_service_years.'y '.$app->total_service_months.'m'" />
-                        </div>
-                    </x-section>
-                    <x-section title="Work Experience" :last="true">
-                        @if($app->services->isEmpty())
-                            <x-empty />
-                        @else
-                            <div class="pl-1">
-                                @foreach($app->services as $s)
-                                    <x-timeline-item :last="$loop->last"
-                                        :title="$s->designation" :badge="$s->total_duration"
-                                        :sub="$s->institution"
-                                        :date="optional($s->from_date)->format('d M Y').' — '.optional($s->to_date)->format('d M Y')" />
-                                @endforeach
-                            </div>
-                        @endif
-                    </x-section>
-                </div>
-
-                {{-- EXTRAS --}}
-                <div class="pane hidden" data-pane="extras">
-                    <x-section title="Projects">
-                        @forelse($app->projects as $p)
-                            <div class="flex justify-between items-center gap-3 bg-surface2 ring-1 ring-inset ring-line rounded-xl px-4 py-3 mb-2 text-sm">
-                                <span class="font-medium">{{ $p->title }}</span>
-                                <span class="text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap
-                                             {{ $projStatus[strtolower($p->status)] ?? $projStatus['pending'] }}">{{ $p->status }}</span>
-                            </div>
-                        @empty
-                            <x-empty />
-                        @endforelse
-                    </x-section>
-                    <x-section title="Courses">
-                        @forelse($app->courses as $c)
-                            <div class="flex justify-between items-center gap-3 bg-surface2 ring-1 ring-inset ring-line rounded-xl px-4 py-3 mb-2 text-sm">
-                                <span class="font-medium">{{ $c->course_name }}</span>
-                                <span class="text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap
-                                             {{ $c->completed ? 'bg-st-green/10 text-st-green ring-1 ring-inset ring-st-green/20' : 'bg-muted/10 text-muted ring-1 ring-inset ring-muted/20' }}">{{ $c->completed ? 'Completed' : 'Pending' }}</span>
-                            </div>
-                        @empty
-                            <x-empty />
-                        @endforelse
-                    </x-section>
-                    <x-section title="Career Aspirations" :last="true">
-                        @if($app->aspirations->isEmpty())
-                            <x-empty />
-                        @else
-                            <div class="flex flex-wrap gap-2">
-                                @foreach($app->aspirations as $a)
-                                    <span class="bg-accent/[.07] ring-1 ring-inset ring-accent/15 px-3.5 py-1.5 rounded-full text-[13px] font-medium text-accent">{{ $a->aspiration }}</span>
-                                @endforeach
-                            </div>
-                        @endif
-                    </x-section>
-                </div>
-
-                {{-- DOCUMENTS --}}
-                <div class="pane hidden" data-pane="documents">
-                    <x-section title="Uploaded Documents" :last="true">
-                        @if($app->documents->isEmpty())
-                            <x-empty msg="No documents uploaded." />
-                        @else
-                            <div class="grid gap-2.5 mb-4">
-                                @foreach($app->documents as $d)
-                                    <div class="flex items-center gap-[13px] bg-surface2 ring-1 ring-inset ring-line rounded-xl px-4 py-3 transition-colors hover:ring-accent/40">
-                                        <div class="w-[42px] h-[42px] rounded-xl bg-white ring-1 ring-inset ring-line grid place-items-center text-accent text-lg shrink-0">📄</div>
-                                        <div class="flex-1 min-w-0">
-                                            <strong class="text-sm block truncate">{{ $d->document_type }}</strong>
-                                            <span class="text-xs text-muted">{{ $d->file_name }} · {{ $d->file_size_human }}</span>
-                                        </div>
-                                        <a title="Download" href="{{ route('download', [$app, $d]) }}"
-                                           class="w-[38px] h-[38px] rounded-xl bg-gradient-to-br from-accent to-accent2 text-white grid place-items-center no-underline transition-transform hover:scale-105">⬇</a>
+        {{-- EDUCATION --}}
+        <div x-show="tab === 'education'" x-transition.opacity.duration.200ms style="display:none">
+            <section class="mb-[30px]">
+                <h3 class="text-xs font-bold text-gold2 uppercase tracking-[.08em] m-0 mb-4 pb-2.5 border-b border-line">Educational Qualifications</h3>
+                @if($app->educations->isEmpty())
+                    <p class="text-fmuted text-[13px] italic py-1">No records available.</p>
+                @else
+                    <div class="pl-1.5">
+                        @foreach($app->educations as $e)
+                            <div class="flex gap-3.5 pb-5 relative {{ !$loop->last ? "before:content-[''] before:absolute before:left-[5px] before:top-4 before:-bottom-1 before:w-px before:bg-line2" : '' }}">
+                                <div class="w-[11px] h-[11px] rounded-full mt-1.5 shrink-0 bg-gradient-to-br from-gold to-gold2 ring-4 ring-gold/10"></div>
+                                <div class="flex-1 bg-surface2 border border-line2 rounded-xl px-4 py-[13px]">
+                                    <div class="flex justify-between items-center gap-2.5">
+                                        <strong class="text-sm">{{ $e->education_level }}</strong>
+                                        <span class="text-xs text-gold2 font-bold whitespace-nowrap">{{ $e->marks }}</span>
                                     </div>
-                                @endforeach
+                                    <p class="mt-1.5 mb-1.5 text-[13px] text-fmuted">{{ $e->institution }} · {{ $e->subjects }}</p>
+                                    <span class="text-xs text-fmuted font-mono">{{ optional($e->passing_date)->format('d M Y') }}</span>
+                                </div>
                             </div>
-                            <a href="{{ route('download_all', $app) }}"
-                               class="w-full flex items-center justify-center gap-[9px] bg-surface2 ring-1 ring-inset ring-dashed ring-line text-muted
-                                      p-3.5 rounded-xl text-[13px] font-semibold no-underline transition-colors hover:ring-accent/50 hover:text-accent">⬇ Download All as ZIP</a>
-                        @endif
-                    </x-section>
+                        @endforeach
+                    </div>
+                @endif
+            </section>
+        </div>
+
+        {{-- EXPERIENCE --}}
+        <div x-show="tab === 'experience'" x-transition.opacity.duration.200ms style="display:none">
+            <section class="mb-[30px]">
+                <h3 class="text-xs font-bold text-gold2 uppercase tracking-[.08em] m-0 mb-4 pb-2.5 border-b border-line">Service Summary</h3>
+                <div class="grid grid-cols-2 gap-x-[26px] gap-y-4">
+                    <div class="flex flex-col gap-[5px]"><span class="text-[11px] uppercase tracking-[.06em] text-fmuted font-semibold">Total Service</span><span class="text-sm font-medium">{{ $app->total_service_years }}y {{ $app->total_service_months }}m</span></div>
                 </div>
-            </div>
+            </section>
+            <section class="mb-[30px]">
+                <h3 class="text-xs font-bold text-gold2 uppercase tracking-[.08em] m-0 mb-4 pb-2.5 border-b border-line">Work Experience</h3>
+                @if($app->services->isEmpty())
+                    <p class="text-fmuted text-[13px] italic py-1">No records available.</p>
+                @else
+                    <div class="pl-1.5">
+                        @foreach($app->services as $s)
+                            <div class="flex gap-3.5 pb-5 relative {{ !$loop->last ? "before:content-[''] before:absolute before:left-[5px] before:top-4 before:-bottom-1 before:w-px before:bg-line2" : '' }}">
+                                <div class="w-[11px] h-[11px] rounded-full mt-1.5 shrink-0 bg-gradient-to-br from-gold to-gold2 ring-4 ring-gold/10"></div>
+                                <div class="flex-1 bg-surface2 border border-line2 rounded-xl px-4 py-[13px]">
+                                    <div class="flex justify-between items-center gap-2.5">
+                                        <strong class="text-sm">{{ $s->designation }}</strong>
+                                        <span class="text-xs text-gold2 font-bold whitespace-nowrap">{{ $s->total_duration }}</span>
+                                    </div>
+                                    <p class="mt-1.5 mb-1.5 text-[13px] text-fmuted">{{ $s->institution }}</p>
+                                    <span class="text-xs text-fmuted font-mono">{{ optional($s->from_date)->format('d M Y') }} — {{ optional($s->to_date)->format('d M Y') }}</span>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </section>
+        </div>
+
+        {{-- EXTRAS --}}
+        <div x-show="tab === 'extras'" x-transition.opacity.duration.200ms style="display:none">
+            <section class="mb-[30px]">
+                <h3 class="text-xs font-bold text-gold2 uppercase tracking-[.08em] m-0 mb-4 pb-2.5 border-b border-line">Projects</h3>
+                @forelse($app->projects as $p)
+                    <div class="flex justify-between items-center gap-3 bg-surface2 border border-line2 rounded-xl px-4 py-3 mb-2 text-sm">
+                        <span>{{ $p->title }}</span>
+                        <span class="text-[11px] font-bold px-2.5 py-[3px] rounded-md whitespace-nowrap {{ $projStatus[strtolower($p->status)] ?? $projStatus['pending'] }}">{{ $p->status }}</span>
+                    </div>
+                @empty
+                    <p class="text-fmuted text-[13px] italic py-1">No records available.</p>
+                @endforelse
+            </section>
+            <section class="mb-[30px]">
+                <h3 class="text-xs font-bold text-gold2 uppercase tracking-[.08em] m-0 mb-4 pb-2.5 border-b border-line">Courses</h3>
+                @forelse($app->courses as $c)
+                    <div class="flex justify-between items-center gap-3 bg-surface2 border border-line2 rounded-xl px-4 py-3 mb-2 text-sm">
+                        <span>{{ $c->course_name }}</span>
+                        <span class="text-[11px] font-bold px-2.5 py-[3px] rounded-md whitespace-nowrap {{ $c->completed ? 'bg-[#46c08a]/10 text-[#46c08a]' : 'bg-fmuted/10 text-[#a3a9bb]' }}">{{ $c->completed ? 'Completed' : 'Pending' }}</span>
+                    </div>
+                @empty
+                    <p class="text-fmuted text-[13px] italic py-1">No records available.</p>
+                @endforelse
+            </section>
+            <section class="mb-[30px]">
+                <h3 class="text-xs font-bold text-gold2 uppercase tracking-[.08em] m-0 mb-4 pb-2.5 border-b border-line">Career Aspirations</h3>
+                @if($app->aspirations->isEmpty())
+                    <p class="text-fmuted text-[13px] italic py-1">No records available.</p>
+                @else
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($app->aspirations as $a)
+                            <span class="bg-surface2 border border-line2 px-3.5 py-[7px] rounded-[10px] text-[13px] font-medium text-gold2">{{ $a->aspiration }}</span>
+                        @endforeach
+                    </div>
+                @endif
+            </section>
+        </div>
+
+        {{-- DOCUMENTS --}}
+        <div x-show="tab === 'documents'" x-transition.opacity.duration.200ms style="display:none">
+            <section class="mb-[30px]">
+                <h3 class="text-xs font-bold text-gold2 uppercase tracking-[.08em] m-0 mb-4 pb-2.5 border-b border-line">Uploaded Documents</h3>
+                @if($app->documents->isEmpty())
+                    <p class="text-fmuted text-[13px] italic py-1">No documents uploaded.</p>
+                @else
+                    @foreach($app->documents as $d)
+                        <div class="flex items-center gap-[13px] bg-surface2 border border-line2 rounded-xl px-4 py-[13px] mb-2.5 transition-colors hover:border-gold">
+                            <div class="w-[42px] h-[42px] rounded-xl bg-surface border border-line2 grid place-items-center text-gold2 text-lg shrink-0">📄</div>
+                            <div class="flex-1 min-w-0">
+                                <strong class="text-sm block truncate">{{ $d->document_type }}</strong>
+                                <span class="text-xs text-fmuted">{{ $d->file_name }} · {{ $d->file_size_human }}</span>
+                            </div>
+                            <a title="Download" href="{{ route('download', [$app, $d]) }}"
+                               class="w-[38px] h-[38px] rounded-[10px] bg-gradient-to-br from-gold to-gold2 text-[#1a1408] grid place-items-center no-underline transition-transform hover:scale-105">⬇</a>
+                        </div>
+                    @endforeach
+                    <a href="{{ route('download_all', $app) }}"
+                       class="flex items-center justify-center gap-[9px] w-full bg-surface2 border border-dashed border-line2 text-fmuted
+                              p-3.5 rounded-xl text-[13px] font-semibold no-underline transition-colors hover:border-gold hover:text-gold2 mt-1.5">⬇ Download All as ZIP</a>
+                @endif
+            </section>
         </div>
     </div>
 </div>
-
-<script>
-    document.querySelectorAll('.dtab').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            document.querySelectorAll('.dtab').forEach(b => b.removeAttribute('data-active'));
-            document.querySelectorAll('.pane').forEach(p => p.classList.add('hidden'));
-            btn.setAttribute('data-active', 'true');
-            const pane = document.querySelector('[data-pane="' + btn.dataset.tab + '"]');
-            pane.classList.remove('hidden');
-            pane.classList.remove('animate-fade');
-            void pane.offsetWidth;
-            pane.classList.add('animate-fade');
-        });
-    });
-</script>
 @endsection

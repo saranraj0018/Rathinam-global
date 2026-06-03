@@ -1,7 +1,5 @@
 @extends('layouts.scholar')
-
 @section('title', 'Sign In — Rathinam Global University')
-
 @section('content')
     <div class="auth">
         <div class="auth__card">
@@ -10,13 +8,10 @@
                 <h1 class="auth__title">Welcome back</h1>
                 <p class="auth__sub">Sign in to continue to your RGU account</p>
             </div>
-
-            <form id="login-form" method="POST" novalidate>
+            <form id="loginForm" method="POST" action="{{ route('auth.login.store') }}" novalidate>
                 @csrf
-
                 <x-text-field name="email" label="Email" type="email" required
                               placeholder="you@example.com" autocomplete="email" />
-
                 <div class="f-group">
                     <label for="password" class="f-label">Password <span class="f-req">*</span></label>
                     <div class="pw">
@@ -29,12 +24,11 @@
 
                 <button type="submit" class="btn btn-primary">Sign In</button>
             </form>
-
             <p class="auth__alt">Don’t have an account? <a href="{{ route('auth.register') }}">Create one</a></p>
         </div>
     </div>
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('js/auth.js') }}"></script>
+      <script src="{{ asset('admin/js/auth.js') }}"></script>
 @endpush

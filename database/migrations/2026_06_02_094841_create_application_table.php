@@ -8,16 +8,22 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     */
+    */
+
     public function up(): void
     {
         Schema::create('applications', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+            $table->string('current_step')->default('programme');
+            $table->string('payment_status')->default('unpaid');
+            $table->json('completed_steps')->nullable();
             $table->string('application_no')->unique();
-            $table->foreignId('school_id')->nullable();
-            $table->foreignId('discipline_id')->nullable();
+            $table->string('school')->nullable();
+            $table->string('discipline')->nullable();
             $table->string('specialization')->nullable();
             $table->string('specialization_other')->nullable();
+            $table->json('declaration')->nullable();
             $table->enum('programme_mode', [
                 'full_time',
                 'part_time'

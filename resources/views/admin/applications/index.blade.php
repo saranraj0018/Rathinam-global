@@ -2,205 +2,154 @@
 @extends('admin.app')
 @section('title', 'Applications')
 
-@push('styles')
-{{-- Tailwind config: light "RGU" admissions palette + display/body fonts --}}
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script>
-    tailwind.config = {
-        theme: {
-            extend: {
-                colors: {
-                    bg:       '#f4f2f8',   // page wash (cool lilac-grey)
-                    surface:  '#ffffff',   // cards
-                    surface2: '#f7f6fb',   // subtle fills
-                    line:     '#ece9f2',   // hairline borders
-                    text:     '#181423',   // near-black ink
-                    muted:    '#736e82',   // secondary text
-                    accent:   '#7c3aed',   // violet (brand)
-                    accent2:  '#9d5cf5',   // lighter violet
-                    'brand-ink': '#1c1530',// deep aubergine (hero band)
-                    'st-green':  '#16a34a',
-                    'st-blue':   '#2563eb',
-                    'st-amber':  '#d97706',
-                    'st-red':    '#dc2626',
-                },
-                fontFamily: {
-                    sans:    ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-                    display: ['Fraunces', 'Georgia', 'serif'],
-                    mono:    ['ui-monospace', 'SFMono-Regular', 'monospace'],
-                },
-                boxShadow: {
-                    card: '0 1px 2px rgba(28,21,48,.04), 0 8px 24px -12px rgba(28,21,48,.12)',
-                    pop:  '0 12px 40px -12px rgba(124,58,237,.35)',
-                },
-            },
-        },
-    };
-</script>
-@endpush
-
 @section('content')
-<div class="min-h-screen bg-bg text-text font-sans text-sm">
+@php
+    $statuses = [
+        'all' => 'All', 'draft' => 'Draft', 'submitted' => 'Submitted',
+        'under_review' => 'Under Review', 'approved' => 'Approved', 'rejected' => 'Rejected',
+    ];
+    // status -> badge utility classes (Tailwind can't build classes from runtime strings)
+    $badge = [
+        'draft'        => 'bg-fmuted/10 text-[#a3a9bb]',
+        'submitted'    => 'bg-[#6b9bf2]/10 text-[#6b9bf2]',
+        'under_review' => 'bg-[#e0a94a]/10 text-[#e0a94a]',
+        'approved'     => 'bg-[#46c08a]/10 text-[#46c08a]',
+        'rejected'     => 'bg-[#e87878]/10 text-[#e87878]',
+    ];
 
-    {{-- ───────────── Hero band (deep aubergine, like the screenshot) ───────────── --}}
-    <div class="relative overflow-hidden bg-brand-ink text-white
-                [background-image:radial-gradient(900px_circle_at_12%_-40%,rgba(157,92,245,.45),transparent_55%),radial-gradient(700px_circle_at_92%_-20%,rgba(34,197,94,.18),transparent_50%)]">
-        <header class="relative flex items-center justify-between gap-6 px-8 py-5">
-            <div class="flex items-center gap-3.5">
-                <div class="w-[44px] h-[44px] rounded-[13px] bg-gradient-to-br from-accent2 to-st-green
-                            grid place-items-center font-display font-semibold text-[22px] text-white shadow-pop">A</div>
-                <div>
-                    <p class="text-[11px] font-semibold tracking-[.18em] text-accent2/90 uppercase">Doctoral Programmes · 2026–27</p>
-                    <h1 class="font-display text-xl font-semibold leading-tight m-0">Admissions Console</h1>
-                </div>
+    $sortLink = function($column, $label) {
+        $dir   = (request('sort') === $column && request('dir') === 'asc') ? 'desc' : 'asc';
+        $arrow = request('sort') === $column ? (request('dir') === 'asc' ? ' ↑' : ' ↓') : '';
+        $url   = route('applications', array_merge(request()->except('page'), ['sort' => $column, 'dir' => $dir]));
+        return '<a href="'.$url.'" class="text-inherit no-underline hover:text-ftext">'.$label.$arrow.'</a>';
+    };
+@endphp
+
+<div class="min-h-screen bg-ink text-ftext font-sans text-sm
+            [background-image:radial-gradient(1100px_circle_at_88%_-8%,rgba(201,163,90,.10),transparent_42%),radial-gradient(900px_circle_at_-5%_4%,rgba(107,155,242,.07),transparent_40%)]">
+
+    {{-- Topbar --}}
+    <header class="sticky top-0 z-20 flex items-center justify-between gap-6 px-8 py-[18px]
+                   border-b border-line bg-surface/60 backdrop-blur-xl">
+        <div class="flex items-center gap-3.5">
+            <div class="w-11 h-11 rounded-[13px] grid place-items-center font-display font-semibold text-[23px] text-[#1a1408]
+                        bg-gradient-to-br from-gold to-gold2 shadow-[0_8px_24px_-8px_rgba(201,163,90,.6),0_0_0_1px_rgba(230,201,139,.2)_inset]">A</div>
+            <div>
+                <div class="text-[10.5px] font-bold tracking-[.16em] uppercase text-gold2/85">Doctoral Programmes · 2026–27</div>
+                <h1 class="font-display text-[19px] font-semibold leading-tight m-0">Admissions Console</h1>
             </div>
-
-            <form method="GET" action="{{ route('applications') }}"
-                  class="flex items-center gap-2.5 bg-white/[.08] border border-white/15 rounded-full px-4 py-2.5 w-[420px]
-                         backdrop-blur-md focus-within:border-accent2 focus-within:bg-white/[.12] transition-colors">
-                @if(request('status'))
-                    <input type="hidden" name="status" value="{{ request('status') }}">
-                @endif
-                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="text-white/60 shrink-0">
-                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-                </svg>
-                <input name="q" value="{{ request('q') }}"
-                       placeholder="Search by name, application no, or email…"
-                       class="bg-transparent border-none outline-none text-white w-full placeholder:text-white/50">
-            </form>
-        </header>
-
-        <div class="relative px-8 pb-12 pt-4">
-            <h2 class="font-display text-4xl sm:text-[42px] font-semibold tracking-tight m-0">Application Management</h2>
-            <p class="mt-2 text-white/55 text-[15px]">Review, filter, and process Ph.D. applications across all schools.</p>
         </div>
+
+        <form method="GET" action="{{ route('applications') }}"
+              class="flex items-center gap-2.5 w-[420px] px-4 py-2.5 rounded-xl bg-surface border border-line text-fmuted
+                     transition focus-within:border-gold focus-within:ring-[3px] focus-within:ring-gold/10">
+            @if(request('status'))
+                <input type="hidden" name="status" value="{{ request('status') }}">
+            @endif
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="shrink-0">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+            </svg>
+            <input name="q" value="{{ request('q') }}" placeholder="Search by name, application no, or email…"
+                   class="bg-transparent border-0 outline-none text-ftext w-full placeholder:text-[#5f6477]">
+        </form>
+    </header>
+
+    {{-- Page head --}}
+    <div class="px-8 pt-[30px] pb-2">
+        <h2 class="font-display text-[32px] font-semibold tracking-tight m-0">Application Management</h2>
+        <p class="mt-1.5 text-fmuted text-[14.5px]">Review, filter, and process Ph.D. applications across all schools.</p>
     </div>
 
-    @php
-        $statuses = [
-            'all' => 'All', 'draft' => 'Draft', 'submitted' => 'Submitted',
-            'under_review' => 'Under Review', 'approved' => 'Approved', 'rejected' => 'Rejected',
-        ];
-        $badgeClasses = [
-            'draft'        => 'bg-muted/10 text-muted ring-1 ring-inset ring-muted/20',
-            'submitted'    => 'bg-st-blue/10 text-st-blue ring-1 ring-inset ring-st-blue/20',
-            'under_review' => 'bg-st-amber/10 text-st-amber ring-1 ring-inset ring-st-amber/20',
-            'approved'     => 'bg-st-green/10 text-st-green ring-1 ring-inset ring-st-green/20',
-            'rejected'     => 'bg-st-red/10 text-st-red ring-1 ring-inset ring-st-red/20',
-        ];
-    @endphp
+    {{-- Status pills --}}
+    <div class="flex gap-2 flex-wrap px-8 pt-5 pb-1">
+        @foreach($statuses as $key => $label)
+            @php $isActive = request('status', 'all') === $key; @endphp
+            <a href="{{ route('applications', array_merge(request()->except('page'), ['status' => $key])) }}"
+               class="inline-flex items-center gap-2 px-3.5 py-2 rounded-[10px] text-[13px] font-semibold no-underline transition
+                      {{ $isActive
+                          ? 'bg-gradient-to-br from-gold to-gold2 text-[#1a1408] shadow-[0_8px_22px_-10px_rgba(201,163,90,.7)]'
+                          : 'bg-surface border border-line text-fmuted hover:border-line2 hover:text-ftext' }}">
+                {{ $label }}
+                <span class="text-[11px] font-extrabold px-[7px] py-px rounded-md
+                             {{ $isActive ? 'bg-[#1a1408]/20 text-[#3a2e10]' : 'bg-white/[.06] text-fmuted' }}">
+                    {{ $counts[$key] ?? 0 }}
+                </span>
+            </a>
+        @endforeach
+    </div>
 
-    {{-- ───────────── Content card lifts over the hero ───────────── --}}
-    <div class="px-4 sm:px-8 -mt-6 pb-16 relative">
-        <div class="bg-surface rounded-[20px] border border-line shadow-card overflow-hidden">
-
-            {{-- Status pills --}}
-            <div class="flex gap-2 flex-wrap px-6 sm:px-7 pt-6 pb-5 border-b border-line">
-                @foreach($statuses as $key => $label)
-                    @php $isActive = request('status', 'all') === $key; @endphp
-                    <a href="{{ route('applications', array_merge(request()->except('page'), ['status' => $key])) }}"
-                       class="flex items-center gap-2 px-3.5 py-2 rounded-full text-[13px] font-semibold no-underline transition-all duration-150
-                              {{ $isActive
-                                  ? 'bg-gradient-to-r from-accent to-accent2 text-white shadow-pop'
-                                  : 'bg-surface2 text-muted ring-1 ring-inset ring-line hover:ring-accent/40 hover:text-text' }}">
-                        {{ $label }}
-                        <span class="px-[7px] py-px rounded-full text-[11px] font-bold tabular-nums
-                                     {{ $isActive ? 'bg-white/25 text-white' : 'bg-white text-muted ring-1 ring-inset ring-line' }}">
-                            {{ $counts[$key] ?? 0 }}
-                        </span>
-                    </a>
-                @endforeach
-            </div>
-
-            {{-- Table --}}
-            <main class="px-1.5 sm:px-3 pt-1 pb-2 overflow-x-auto">
-                @php
-                    $sortLink = function($column, $label) {
-                        $dir   = (request('sort') === $column && request('dir') === 'asc') ? 'desc' : 'asc';
-                        $active = request('sort') === $column;
-                        $arrow = $active ? (request('dir') === 'asc' ? ' ↑' : ' ↓') : '';
-                        $url   = route('applications', array_merge(request()->except('page'), ['sort' => $column, 'dir' => $dir]));
-                        $cls   = $active ? 'text-accent' : 'text-muted hover:text-text';
-                        return '<a href="'.$url.'" class="'.$cls.' no-underline transition-colors">'.$label.$arrow.'</a>';
-                    };
-                @endphp
-
-                <table class="w-full border-separate border-spacing-0 min-w-[980px]">
-                    <thead>
-                        <tr class="[&>th]:text-left [&>th]:text-[11px] [&>th]:uppercase [&>th]:tracking-[.08em]
-                                   [&>th]:text-muted [&>th]:font-bold [&>th]:px-4 [&>th]:py-3.5
-                                   [&>th]:whitespace-nowrap">
-                            <th>{!! $sortLink('application_no', 'Application No') !!}</th>
-                            <th>{!! $sortLink('full_name', 'Applicant') !!}</th>
-                            <th>Contact</th>
-                            <th>Specialization</th>
-                            <th>{!! $sortLink('programme_mode', 'Mode') !!}</th>
-                            <th>Docs</th>
-                            <th>{!! $sortLink('status', 'Status') !!}</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($applications as $a)
-                            @php $url = route('applications_show', $a); @endphp
-                            <tr onclick="window.location='{{ $url }}'"
-                                class="group cursor-pointer transition-colors hover:bg-surface2
-                                       [&>td]:px-4 [&>td]:py-3.5 [&>td]:border-t [&>td]:border-line [&>td]:align-middle">
-                                <td class="font-mono text-[13px] font-medium text-accent">{{ $a->application_no }}</td>
-                                <td>
-                                    <div class="flex items-center gap-[11px]">
-                                        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-accent to-accent2
-                                                    grid place-items-center font-bold text-[12px] text-white shrink-0">
-                                            {{ \Illuminate\Support\Str::of($a->full_name)->explode(' ')->take(2)->map(fn($n) => $n[0] ?? '')->implode('') }}
-                                        </div>
-                                        <div>
-                                            <strong class="block font-semibold text-text">{{ $a->full_name }}</strong>
-                                            <span class="text-xs text-muted">{{ $a->gender }} · {{ $a->age }} yrs</span>
-                                        </div>
+    {{-- Table --}}
+    <main class="px-8 pt-3.5 pb-[60px] overflow-x-auto">
+        <div class="bg-surface border border-line rounded-[18px] overflow-hidden
+                    shadow-[0_1px_0_rgba(255,255,255,.03)_inset,0_20px_50px_-24px_rgba(0,0,0,.8)]">
+            <table class="w-full border-separate border-spacing-0 min-w-[980px]">
+                <thead>
+                    <tr class="[&>th]:text-left [&>th]:text-[11px] [&>th]:uppercase [&>th]:tracking-[.08em]
+                               [&>th]:text-[#5f6477] [&>th]:font-bold [&>th]:px-[18px] [&>th]:py-[15px]
+                               [&>th]:border-b [&>th]:border-line [&>th]:bg-ink2 [&>th]:whitespace-nowrap">
+                        <th>{!! $sortLink('application_no', 'Application No') !!}</th>
+                        <th>{!! $sortLink('full_name', 'Applicant') !!}</th>
+                        <th>Contact</th>
+                        <th>Specialization</th>
+                        <th>{!! $sortLink('programme_mode', 'Mode') !!}</th>
+                        <th>Docs</th>
+                        <th>{!! $sortLink('status', 'Status') !!}</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($applications as $a)
+                        @php $url = route('applications_show', $a); @endphp
+                        <tr onclick="window.location='{{ $url }}'"
+                            class="group cursor-pointer transition-colors hover:bg-surface2
+                                   [&>td]:px-[18px] [&>td]:py-[15px] [&>td]:border-b [&>td]:border-line [&>td]:align-middle
+                                   last:[&>td]:border-b-0">
+                            <td class="font-mono text-[13px] font-medium text-gold2">{{ $a->application_no }}</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="w-[38px] h-[38px] rounded-[11px] shrink-0 grid place-items-center font-bold text-[12.5px] text-gold2
+                                                bg-gradient-to-br from-surface2 to-line2 border border-line2">
+                                        {{ \Illuminate\Support\Str::of($a->full_name)->explode(' ')->take(2)->map(fn($n) => $n[0] ?? '')->implode('') }}
                                     </div>
-                                </td>
-                                <td>
-                                    <span class="text-xs text-muted block">{{ $a->email }}</span>
-                                    <span class="text-xs text-muted">{{ $a->mobile }}</span>
-                                </td>
-                                <td class="text-[13px]">{{ $a->specialization ?? '—' }}</td>
-                                <td>
-                                    <span class="text-xs px-2.5 py-1 rounded-full bg-surface2 ring-1 ring-inset ring-line text-muted font-medium">
-                                        {{ $a->programme_mode === 'full_time' ? 'Full Time' : 'Part Time' }}
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="inline-flex items-center gap-[5px] text-[13px] text-muted font-medium">📎 {{ $a->documents_count }}</span>
-                                </td>
-                                <td>
-                                    <span class="inline-flex items-center gap-[5px] px-2.5 py-[5px] rounded-full text-xs font-semibold whitespace-nowrap
-                                                 {{ $badgeClasses[$a->status] ?? $badgeClasses['draft'] }}">
-                                        {{ $statuses[$a->status] ?? $a->status }}
-                                    </span>
-                                </td>
-                                <td class="text-right">
-                                    <a href="{{ $url }}" onclick="event.stopPropagation()"
-                                       class="inline-flex items-center gap-1.5 bg-surface2 ring-1 ring-inset ring-line text-text
-                                              px-3.5 py-[7px] rounded-full text-[13px] font-semibold no-underline transition-all duration-150
-                                              group-hover:ring-accent/40 hover:!bg-gradient-to-r hover:!from-accent hover:!to-accent2 hover:!text-white hover:!ring-transparent">
-                                        View →
-                                    </a>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="8" class="text-center py-16 text-muted">No applications match your filters.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </main>
+                                    <div>
+                                        <strong class="block font-semibold text-ftext">{{ $a->full_name }}</strong>
+                                        <span class="text-xs text-fmuted">{{ $a->gender }} · {{ $a->age }} yrs</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-xs text-fmuted leading-[1.7]">{{ $a->email }}<br>{{ $a->mobile }}</td>
+                            <td>{{ $a->specialization ?? '—' }}</td>
+                            <td>
+                                <span class="text-[11.5px] font-medium px-2.5 py-1 rounded-lg bg-surface2 border border-line2 text-fmuted">
+                                    {{ $a->programme_mode === 'full_time' ? 'Full Time' : 'Part Time' }}
+                                </span>
+                            </td>
+                            <td class="text-[13px] font-medium text-fmuted">📎 {{ $a->documents_count }}</td>
+                            <td>
+                                <span class="inline-flex items-center gap-1.5 px-[11px] py-[5px] rounded-lg text-[11.5px] font-bold whitespace-nowrap
+                                             before:content-[''] before:w-1.5 before:h-1.5 before:rounded-full before:bg-current
+                                             {{ $badge[$a->status] ?? $badge['draft'] }}">
+                                    {{ $statuses[$a->status] ?? $a->status }}
+                                </span>
+                            </td>
+                            <td class="text-right">
+                                <a href="{{ $url }}" onclick="event.stopPropagation()"
+                                   class="inline-flex items-center gap-1.5 px-3.5 py-[7px] rounded-[9px] text-[13px] font-semibold no-underline transition
+                                          bg-surface2 border border-line2 text-ftext group-hover:border-gold group-hover:text-gold2">
+                                    View →
+                                </a>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="8" class="text-center py-14 text-fmuted">No applications match your filters.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
 
-        {{-- Pagination --}}
-        <div class="px-2 pt-5 [&_nav]:flex [&_nav]:justify-between [&_nav>p]:text-muted [&_nav>p]:text-[13px]
-                    [&_a]:text-accent [&_span]:text-muted">
+        <div class="pt-[22px] px-2 [&_a]:text-fmuted [&_span]:text-fmuted [&_a:hover]:text-gold2">
             {{ $applications->links() }}
         </div>
-    </div>
+    </main>
 </div>
 @endsection

@@ -74,7 +74,7 @@
             @foreach ($data['career_aspirations'] as $aspiration)
                 <label class="choice-card choice-card--check choice-card--sm">
                     <input type="checkbox" name="career_aspirations[]" value="{{ $aspiration }}"
-                           @if($aspiration === 'Any other') data-reveal-target="#career-other-wrap" @endif>
+                        @if ($aspiration === 'Any other') data-reveal-target="#career-other-wrap" @endif>
                     <span class="choice-card__box"><span class="choice-card__title">{{ $aspiration }}</span></span>
                 </label>
             @endforeach
@@ -84,12 +84,30 @@
         </div>
         <p class="f-error" data-error-for="career_aspirations"></p>
     </div>
+  @php
+    // A file already exists for this field?  Adjust source to match your view.
+    $summaryUploaded = !empty($draft['files']['summary_document']['url'] ?? null);
+@endphp
 
-    {{-- One-page summary --}}
-    <div class="callout callout--info">
-        <strong>One-page focus summary</strong>
-        Enclose a one-page summary of your intended Ph.D. focus area / theme as a separate sheet.
+<div class="f-group">
+    <label class="f-label">One-page Ph.D. focus / theme summary <span class="f-req">*</span></label>
+
+    <div class="saved-file-preview" id="saved-summary_document" @unless($summaryUploaded) hidden @endunless>
+        <div class="saved-file-box">
+            <div class="saved-file-info">
+                <span class="saved-file-name" data-saved-name="summary_document">
+                    {{ $draft['files']['summary_document']['name'] ?? '' }}
+                </span>
+                <a class="saved-file-link" data-saved-url="summary_document"
+                   target="_blank" href="{{ $draft['files']['summary_document']['url'] ?? '#' }}">View uploaded file</a>
+            </div>
+            <span class="saved-file-badge">Already uploaded</span>
+        </div>
+        <p class="f-hint">Re-upload below to replace the existing file.</p>
     </div>
-    <x-upload name="summary_document" label="One-page Ph.D. focus / theme summary" required
+
+    {{-- required ONLY when no file has been uploaded yet --}}
+    <x-upload name="summary_document" label="" :required="!$summaryUploaded"
               hint="PDF preferred · PDF/JPG/PNG · max 2 MB" />
+</div>
 </section>

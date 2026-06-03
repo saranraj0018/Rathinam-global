@@ -11,13 +11,12 @@
                 <p class="auth__sub">Register to apply to Rathinam Global University</p>
             </div>
 
-            <form id="register-form" method="POST" novalidate>
+            <form id="signupForm" method="POST" action="{{ route('auth.register.store') }}" novalidate>
                 @csrf
-
                 <x-text-field name="name" label="Full Name" required
                               placeholder="Your full name" autocomplete="name" />
 
-                <x-text-field name="phone" label="Phone Number" type="tel" required
+                <x-text-field name="phone_number" label="Phone Number" type="tel" required
                               placeholder="10-digit mobile" autocomplete="tel" />
 
                 <x-text-field name="email" label="Email" type="email" required
@@ -53,5 +52,5 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('js/auth.js') }}"></script>
+    <script src="{{ asset('admin/js/auth.js') }}"></script>
 @endpush
