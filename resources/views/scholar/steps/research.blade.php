@@ -1,4 +1,3 @@
-
 <section class="wizard-step" data-step="5" data-step-id="research" hidden>
     <div class="step-head">
         <span class="step-kicker">Research Profile</span>

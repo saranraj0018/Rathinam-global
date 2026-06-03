@@ -1,4 +1,3 @@
-
 <section class="wizard-step" data-step="7" data-step-id="declaration" hidden>
     <div class="step-head">
         <span class="step-kicker">Declaration</span>

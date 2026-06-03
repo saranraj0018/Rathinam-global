@@ -1,6 +1,3 @@
-{{-- STEP 1 — Programme, School / Discipline / Specialization, Passport photo
-     Backend field names: school, discipline, specialization, specialization_other,
-                          programme_mode, photo (file) --}}
 <section class="wizard-step" data-step="0" data-step-id="programme" hidden>
     <div class="step-head">
         <span class="step-kicker">Section 1 — 2</span>

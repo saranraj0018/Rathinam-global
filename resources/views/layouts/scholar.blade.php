@@ -45,6 +45,7 @@
 
     @include('partials.footer')
 
+    <script src="{{ asset('js/toast.js') }}"></script>
     <script src="{{ asset('js/scholar.js') }}"></script>
     @stack('scripts')
 </body>

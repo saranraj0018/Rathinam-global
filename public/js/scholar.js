@@ -1,14 +1,9 @@
-/* ════════════════════════════════════════════════════════════════
-   RGU — Ph.D. Scholar Application : front-end behaviour
-   - navbar, cascading dropdowns, multi-step wizard, validation,
-     uploads (2 MB), conditional reveals, repeatable rows,
-     age calc, signature, live preview + print.
-   ════════════════════════════════════════════════════════════════ */
 (function () {
     'use strict';
 
     document.addEventListener('DOMContentLoaded', function () {
         initNavbar();
+        initProfileMenu();
 
         var form = document.getElementById('scholar-form');
         if (!form) return;
@@ -17,15 +12,56 @@
 
         initCascade(form);
         initUploads(form);
+        initEduUploads(form);
         initReveals(form);
         initRepeatables(form);
+        initLanguages(form);
+        initServiceCalc(form);
+        initEnclosures(form);
         initAge(form);
         initSignature(form);
         initLiveErrorClearing(form);
         initWizard(form, steps);
     });
 
-    /* ─────────────────────────── Navbar ─────────────────────────── */
+    function initProfileMenu() {
+        var toggle = document.querySelector('[data-profile-toggle]');
+        var menu = document.querySelector('[data-profile-menu]');
+        if (!toggle || !menu) return;
+        function close() { menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
+        toggle.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var willOpen = menu.hidden;
+            menu.hidden = !willOpen;
+            toggle.setAttribute('aria-expanded', String(willOpen));
+        });
+        document.addEventListener('click', function (e) {
+            if (!menu.hidden && !menu.contains(e.target) && !toggle.contains(e.target)) close();
+        });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    }
+
+    function initEnclosures(form) {
+        var items = Array.prototype.slice.call(form.querySelectorAll('[data-encl-source]'));
+        if (!items.length) return;
+        function sync() {
+            items.forEach(function (li) {
+                var input = form.querySelector('input[type="file"][name="' + li.getAttribute('data-encl-source') + '"]');
+                var has = !!(input && input.files && input.files.length);
+                var cb = li.querySelector('[data-encl-auto]');
+                var status = li.querySelector('[data-encl-status]');
+                if (cb) cb.checked = has;
+                if (status) {
+                    status.textContent = has ? '✓ Uploaded' : 'Upload pending';
+                    status.className = 'encl-status ' + (has ? 'is-ok' : 'is-pending');
+                }
+            });
+        }
+        form.addEventListener('change', function (e) { if (e.target && e.target.type === 'file') sync(); });
+        form._syncEnclosures = sync;
+        sync();
+    }
+
     function initNavbar() {
         var nav = document.getElementById('navbar');
         if (nav) {
@@ -49,7 +85,7 @@
         }
     }
 
-    /* ─────────── Cascading School → Discipline → Specialization ─── */
+    // School -> Discipline -> Specialization cascade
     function initCascade(form) {
         var dataEl = document.getElementById('annexure-data');
         var schools = [];
@@ -112,7 +148,7 @@
         });
     }
 
-    /* ────────────────────────── Uploads ─────────────────────────── */
+    // Full dropzone uploads (.js-upload component)
     function initUploads(form) {
         form.querySelectorAll('.js-upload').forEach(function (group) {
             var input = group.querySelector('.js-upload-input');
@@ -128,7 +164,7 @@
             var isImage = group.getAttribute('data-image') === '1';
 
             function clearErr() { if (err) { err.textContent = ''; err.classList.remove('show'); } group.classList.remove('is-invalid'); }
-            function showErr(m) { if (err) { err.textContent = m; err.classList.add('show'); } }
+            function showErr(m) { if (err) { err.textContent = m; err.classList.add('show'); } group.classList.add('is-invalid'); toast(m, 'error'); }
             function reset() {
                 input.value = '';
                 group.classList.remove('has-file');
@@ -178,40 +214,71 @@
         });
     }
 
-    /* ─────────────────── Conditional reveals ────────────────────── */
+    // Per-row education mark-sheet uploads (unlock when the row is fully filled)
+    function initEduUploads(form) {
+        form.querySelectorAll('[data-edu-row]').forEach(function (row) {
+            var wrap = row.querySelector('[data-edu-upload]');
+            if (!wrap) return;
+            var input = wrap.querySelector('.edu-up__input');
+            var fileBox = wrap.querySelector('.edu-up__file');
+            var nameEl = wrap.querySelector('.edu-up__name');
+            var removeBtn = wrap.querySelector('.edu-up__remove');
+            var err = row.querySelector('.f-error');
+            var fields = row.querySelectorAll('.edu-field');
+
+            function complete() { return Array.prototype.every.call(fields, function (f) { return f.value.trim() !== ''; }); }
+            function clearErr() { if (err) { err.textContent = ''; err.classList.remove('show'); } wrap.classList.remove('is-invalid'); }
+            function showErr(m) { if (err) { err.textContent = m; err.classList.add('show'); } wrap.classList.add('is-invalid'); toast(m, 'error'); }
+            function resetFile() { input.value = ''; fileBox.hidden = true; nameEl.textContent = ''; }
+            function sync() {
+                var ok = complete();
+                input.disabled = !ok;
+                wrap.classList.toggle('is-locked', !ok);
+                if (!ok) { resetFile(); clearErr(); }
+            }
+
+            fields.forEach(function (f) { f.addEventListener('input', sync); });
+            input.addEventListener('change', function () {
+                var f = input.files && input.files[0];
+                if (!f) { resetFile(); return; }
+                if (!/\.(pdf|png|jpe?g)$/i.test(f.name)) { showErr('Only PDF, JPG, JPEG or PNG files are allowed.'); resetFile(); return; }
+                if (f.size > 2048 * 1024) { showErr('“' + f.name + '” is ' + formatSize(f.size) + '. Maximum allowed is 2 MB.'); resetFile(); return; }
+                clearErr(); fileBox.hidden = false; nameEl.textContent = f.name;
+            });
+            removeBtn.addEventListener('click', function () { resetFile(); clearErr(); });
+            sync();
+        });
+    }
+
+    // Conditional reveals
     function initReveals(form) {
-        // radio groups that reveal a panel per option
         form.querySelectorAll('[data-reveal-group]').forEach(function (group) {
             group.querySelectorAll('input[type="radio"]').forEach(function (r) {
                 r.addEventListener('change', function () { updateGroupReveals(group); });
             });
         });
-        // checkboxes that reveal a panel
         form.querySelectorAll('input[type="checkbox"][data-reveal-target]').forEach(function (cb) {
             cb.addEventListener('change', function () {
                 var t = document.querySelector(cb.getAttribute('data-reveal-target'));
                 if (t) t.hidden = !cb.checked;
             });
         });
-        // community → community certificate
         var community = document.getElementById('community');
         var ccWrap = document.getElementById('community-cert-wrap');
         if (community && ccWrap) {
             community.addEventListener('change', function () { ccWrap.hidden = !community.value; });
         }
-        // permanent = current address
         var same = document.getElementById('address_same');
         var cur = document.getElementById('address_current');
         var perm = document.getElementById('address_permanent');
         if (same && cur && perm) {
             var sync = function () {
-                if (same.checked) { perm.value = cur.value; perm.readOnly = true; perm.style.background = '#f8fafc'; }
-                else { perm.readOnly = false; perm.style.background = ''; }
+                if (same.checked) { perm.value = cur.value; perm.readOnly = true; }
+                else { perm.readOnly = false; }
             };
             same.addEventListener('change', sync);
             cur.addEventListener('input', function () { if (same.checked) perm.value = cur.value; });
         }
-        // programme mode → Part-Time-only blocks
         form.querySelectorAll('input[name="programme_mode"]').forEach(function (r) {
             r.addEventListener('change', function () { updatePtOnly(form); });
         });
@@ -228,7 +295,7 @@
         form.querySelectorAll('[data-pt-only]').forEach(function (el) { el.hidden = !isPT; });
     }
 
-    /* ───────────────────── Repeatable rows ──────────────────────── */
+    // Repeatable rows (service, projects, languages)
     function initRepeatables(form) {
         form.querySelectorAll('[data-repeat]').forEach(function (container) {
             var body = container.querySelector('[data-repeat-body]');
@@ -264,7 +331,59 @@
         });
     }
 
-    /* ───────────────────── DOB → age ────────────────────────────── */
+    // Languages: skills are selectable only after a language name is entered
+    function initLanguages(form) {
+        var table = form.querySelector('[data-repeat="languages"]');
+        if (!table) return;
+        function sync(row) {
+            if (!row) return;
+            var name = row.querySelector('[data-lang-name]');
+            var has = name && name.value.trim().length > 0;
+            row.querySelectorAll('.skill-chip input').forEach(function (cb) {
+                cb.disabled = !has;
+                if (!has) cb.checked = false;
+            });
+            row.classList.toggle('lang-row--locked', !has);
+        }
+        function syncAll() { table.querySelectorAll('.lang-row:not(.lang-row--head)').forEach(sync); }
+        table.addEventListener('input', function (e) { if (e.target.matches('[data-lang-name]')) sync(e.target.closest('.lang-row')); });
+        table.addEventListener('click', function (e) { if (e.target.closest('[data-repeat-add]')) setTimeout(syncAll, 0); });
+        syncAll();
+    }
+
+    // Service: auto totals (per row "XY YM" + overall years/months)
+    function initServiceCalc(form) {
+        var table = form.querySelector('[data-service-calc]');
+        if (!table) return;
+        var yEl = form.querySelector('[data-svc-total-years]');
+        var mEl = form.querySelector('[data-svc-total-months]');
+
+        function diffMonths(from, to) {
+            if (!from) return null;
+            var f = from.split('-'), t = (to || currentYM()).split('-');
+            if (f.length < 2 || t.length < 2) return null;
+            var d = (parseInt(t[0], 10) - parseInt(f[0], 10)) * 12 + (parseInt(t[1], 10) - parseInt(f[1], 10));
+            return d >= 0 ? d : null;
+        }
+        function fmt(m) { return Math.floor(m / 12) + 'Y ' + (m % 12) + 'M'; }
+        function recalc() {
+            var total = 0;
+            table.querySelectorAll('[data-repeat-row]').forEach(function (row) {
+                var fr = row.querySelector('[data-svc-from]');
+                var to = row.querySelector('[data-svc-to]');
+                var tt = row.querySelector('[data-svc-total]');
+                var m = diffMonths(fr ? fr.value : '', to ? to.value : '');
+                if (m == null) { if (tt) tt.value = ''; }
+                else { if (tt) tt.value = fmt(m); total += m; }
+            });
+            if (yEl) yEl.value = Math.floor(total / 12);
+            if (mEl) mEl.value = total % 12;
+        }
+        table.addEventListener('input', function (e) { if (e.target.matches('[data-svc-from], [data-svc-to]')) recalc(); });
+        table.addEventListener('click', function (e) { if (e.target.closest('[data-repeat-add], [data-repeat-remove]')) setTimeout(recalc, 0); });
+        recalc();
+    }
+
     function initAge(form) {
         var dob = document.getElementById('dob');
         var age = document.getElementById('age');
@@ -276,11 +395,10 @@
             var a = n.getFullYear() - b.getFullYear();
             var m = n.getMonth() - b.getMonth();
             if (m < 0 || (m === 0 && n.getDate() < b.getDate())) a--;
-            age.value = a >= 0 ? a + ' years' : '';
+            age.value = a >= 0 ? String(a) : '';
         });
     }
 
-    /* ───────────────────── Signature preview ────────────────────── */
     function initSignature(form) {
         var inp = form.querySelector('[data-signature-input]');
         var prev = form.querySelector('[data-signature-preview]');
@@ -288,7 +406,6 @@
         inp.addEventListener('input', function () { prev.textContent = inp.value; });
     }
 
-    /* ─────────── clear field errors as the user fixes them ──────── */
     function initLiveErrorClearing(form) {
         form.addEventListener('input', function (e) { clearFieldError(e.target); });
         form.addEventListener('change', function (e) { clearFieldError(e.target); });
@@ -296,15 +413,20 @@
     function clearFieldError(el) {
         if (!el || !el.name) return;
         el.classList.remove('is-invalid');
-        var group = el.closest('.js-upload'); if (group) group.classList.remove('is-invalid');
+        var up = el.closest('.js-upload'); if (up) up.classList.remove('is-invalid');
+        var eu = el.closest('[data-edu-upload]'); if (eu) eu.classList.remove('is-invalid');
         var grid = el.closest('[data-validate-radio], [data-validate-checkbox]');
         if (grid) grid.classList.remove('is-invalid');
+        if (el.closest('[data-repeat="languages"]')) {
+            var lrow = el.closest('.lang-row'); if (lrow) lrow.classList.remove('lang-row--invalid');
+            var lerr = document.querySelector('.f-error[data-error-for="languages[0][name]"]');
+            if (lerr) { lerr.textContent = ''; lerr.classList.remove('show'); }
+        }
         var name = el.name.replace('[]', '');
         var err = document.querySelector('.f-error[data-error-for="' + name + '"]');
         if (err) { err.textContent = ''; err.classList.remove('show'); }
     }
 
-    /* ───────────────────────── Wizard ───────────────────────────── */
     function initWizard(form, steps) {
         var prevBtn = form.querySelector('[data-prev]');
         var nextBtn = form.querySelector('[data-next]');
@@ -315,9 +437,7 @@
         var nameEl = document.querySelector('[data-step-name]');
         var current = 0;
 
-        function labelOf(i) {
-            return tabs[i] ? tabs[i].querySelector('.stepper__label').textContent : '';
-        }
+        function labelOf(i) { return tabs[i] ? tabs[i].querySelector('.stepper__label').textContent : ''; }
         function show(i) {
             steps.forEach(function (s, k) { s.hidden = k !== i; });
             current = i;
@@ -332,6 +452,7 @@
             if (bar) bar.style.width = ((i + 1) / steps.length * 100) + '%';
             if (curEl) curEl.textContent = i + 1;
             if (nameEl) nameEl.textContent = labelOf(i);
+            if (steps[i].getAttribute('data-step-id') === 'enclosures' && form._syncEnclosures) form._syncEnclosures();
             if (steps[i].getAttribute('data-step-id') === 'preview') renderPreview(form);
             var card = document.querySelector('.wizard-card');
             if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -341,9 +462,7 @@
             if (validateStep(steps[current])) show(Math.min(current + 1, steps.length - 1));
         });
         prevBtn.addEventListener('click', function () { show(Math.max(current - 1, 0)); });
-        tabs.forEach(function (t, k) {
-            t.addEventListener('click', function () { if (k < current) show(k); });
-        });
+        tabs.forEach(function (t, k) { t.addEventListener('click', function () { if (k < current) show(k); }); });
 
         var printBtn = form.querySelector('[data-print]');
         if (printBtn) printBtn.addEventListener('click', function () { window.print(); });
@@ -359,7 +478,6 @@
         show(0);
     }
 
-    /* ───────────────────── Validation ───────────────────────────── */
     function isActive(el, stepEl) {
         if (el.disabled) return false;
         var n = el;
@@ -378,7 +496,6 @@
         clearStepErrors(stepEl);
         var ok = true, firstBad = null;
 
-        // radio groups
         stepEl.querySelectorAll('[data-validate-radio]').forEach(function (g) {
             if (!isActive(g, stepEl)) return;
             var name = g.getAttribute('data-validate-radio');
@@ -387,7 +504,6 @@
                 g.classList.add('is-invalid'); ok = false; firstBad = firstBad || g;
             }
         });
-        // checkbox groups (≥1)
         stepEl.querySelectorAll('[data-validate-checkbox]').forEach(function (g) {
             if (!isActive(g, stepEl)) return;
             var name = g.getAttribute('data-validate-checkbox');
@@ -396,7 +512,23 @@
                 g.classList.add('is-invalid'); ok = false; firstBad = firstBad || g;
             }
         });
-        // fields
+        var langTable = stepEl.querySelector('[data-repeat="languages"]');
+        if (langTable) {
+            var langBad = false;
+            langTable.querySelectorAll('.lang-row:not(.lang-row--head)').forEach(function (row) {
+                var nm = row.querySelector('[data-lang-name]');
+                if (nm && nm.value.trim() && !row.querySelector('.skill-chip input:checked')) {
+                    row.classList.add('lang-row--invalid'); langBad = true;
+                } else {
+                    row.classList.remove('lang-row--invalid');
+                }
+            });
+            if (langBad) {
+                setError(stepEl, 'languages[0][name]', 'Select at least one skill (R / W / S / U) for each language you have entered.');
+                ok = false; firstBad = firstBad || langTable;
+            }
+        }
+
         stepEl.querySelectorAll('input, select, textarea').forEach(function (f) {
             if (f.type === 'radio') return;
             if (f.type === 'checkbox') {
@@ -427,11 +559,12 @@
     }
     function markInvalid(stepEl, f, msg) {
         f.classList.add('is-invalid');
-        var group = f.closest('.js-upload'); if (group) group.classList.add('is-invalid');
+        var up = f.closest('.js-upload'); if (up) up.classList.add('is-invalid');
+        var eu = f.closest('[data-edu-upload]'); if (eu) eu.classList.add('is-invalid');
         setError(stepEl, f.name.replace('[]', ''), msg);
     }
 
-    /* ───────────────────── Live preview ─────────────────────────── */
+    // Live document-style preview
     function renderPreview(form) {
         var body = document.querySelector('[data-preview-body]');
         if (!body) return;
@@ -458,23 +591,18 @@
             var empty = (value === undefined || value === null || value === '');
             return '<div class="pv-item' + (full ? ' pv-item--full' : '') + '">' +
                 '<span class="pv-item__label">' + esc(label) + '</span>' +
-                '<span class="pv-item__value' + (empty ? ' is-empty' : '') + '">' +
-                (empty ? '—' : esc(value)) + '</span></div>';
+                '<span class="pv-item__value' + (empty ? ' is-empty' : '') + '">' + (empty ? '—' : esc(value)) + '</span></div>';
         }
-        function section(title, inner) {
-            return '<div class="pv-section"><h3 class="pv-section__title">' + esc(title) + '</h3>' + inner + '</div>';
-        }
+        function section(title, inner) { return '<div class="pv-section"><h3 class="pv-section__title">' + esc(title) + '</h3>' + inner + '</div>'; }
         function grid(items) { return '<div class="pv-grid">' + items.join('') + '</div>'; }
 
         var html = '';
 
-        // photo
         var photo = form.querySelector('input[type="file"][name="photo"]');
         if (photo && photo.files && photo.files[0]) {
             html += '<img class="pv-photo" src="' + URL.createObjectURL(photo.files[0]) + '" alt="photo">';
         }
 
-        // 1 — Programme
         var spec = val('specialization');
         if (spec === 'Other (please specify)') spec = val('specialization_other');
         html += section('Programme & School', grid([
@@ -484,7 +612,6 @@
             item('Programme Mode', radioLabel('programme_mode'))
         ]));
 
-        // 2 — Personal
         var gender = radioLabel('gender');
         if (val('single_girl_child') === 'Yes') gender += ' · Single Girl Child';
         html += section('Personal Details', grid([
@@ -505,31 +632,19 @@
             item('Permanent Address', val('address_permanent'), true)
         ]));
 
-        // 3 — Education
-        html += section('Educational Qualification', eduTable(form) +
-            filesList([['Consolidated mark sheets / certificates', fileName('education_documents')]]));
+        html += section('Educational Qualification', eduTable(form));
 
-        // 4 — Eligibility
-        var elig = radioLabel('eligibility_qualified');
-        var eligItems = [item('Qualified in National/State exam', elig)];
-        if (val('eligibility_qualified') === 'Yes') {
-            eligItems.push(item('Examination', val('eligibility_exam')));
-        } else if (val('eligibility_qualified') === 'No') {
-            eligItems.push(item('Note', 'Must clear the RGU Common Eligibility Test (CET)'));
-        }
-        html += section('Eligibility', grid(eligItems) +
-            filesList([['Qualifying score copy', fileName('eligibility_cert')]]));
+        var eligItems = [item('Qualified in National/State exam', radioLabel('eligibility_qualified'))];
+        if (val('eligibility_qualified') === 'Yes') eligItems.push(item('Examination', val('eligibility_exam')));
+        else if (val('eligibility_qualified') === 'No') eligItems.push(item('Note', 'Must clear the RGU Common Eligibility Test (CET)'));
+        html += section('Eligibility', grid(eligItems) + filesList([['Qualifying score copy', fileName('eligibility_cert')]]));
 
-        // 5 — Experience
         var svc = serviceTable(form);
-        var totalSvc = [val('total_service_years'), val('total_service_months')].filter(Boolean);
         html += section('Academic, Research & Industry Service',
             (svc || '<p class="pv-item__value is-empty">No experience entered.</p>') +
-            (totalSvc.length ? '<p style="margin-top:8px;font-size:.84rem">Total service: <strong>' +
-                esc(val('total_service_years') || '0') + '</strong> years <strong>' +
-                esc(val('total_service_months') || '0') + '</strong> months</p>' : ''));
+            '<p style="margin-top:8px;font-size:.84rem">Total service: <strong>' + esc(val('total_service_years') || '0') +
+            '</strong> years <strong>' + esc(val('total_service_months') || '0') + '</strong> months</p>');
 
-        // 6 — Research
         html += section('Projects, Courses & Aspirations',
             projectsTable(form) + grid([
                 item('Research Methodology completed', radioLabel('course_research_methodology')),
@@ -537,7 +652,6 @@
                 item('Career Aspirations', aspirations(form), true)
             ]) + filesList([['One-page focus summary', fileName('summary_document')]]));
 
-        // 7 — Enclosures
         html += section('Enclosures', enclosuresList(form) + filesList([
             ['NOC (Part-Time)', fileName('noc_document')],
             ['Service Certificate (Part-Time)', fileName('service_certificate')],
@@ -546,7 +660,6 @@
             ['Equivalence Certificate', fileName('equivalence_cert')]
         ]));
 
-        // 8 — Declaration
         html += section('Declaration', grid([
             item('Date', val('declaration_date')),
             item('Station', val('declaration_station'))
@@ -559,9 +672,9 @@
     function languageSummary(form) {
         var out = [];
         form.querySelectorAll('.lang-row:not(.lang-row--head)').forEach(function (row) {
-            var nm = row.querySelector('input[type="text"]');
+            var nm = row.querySelector('[data-lang-name]');
             if (nm && nm.value.trim()) {
-                var skills = Array.prototype.map.call(row.querySelectorAll('input[type="checkbox"]:checked'), function (c) { return c.value; });
+                var skills = Array.prototype.map.call(row.querySelectorAll('.skill-chip input:checked'), function (c) { return c.value; });
                 out.push(nm.value.trim() + (skills.length ? ' (' + skills.join('/') + ')' : ''));
             }
         });
@@ -572,15 +685,18 @@
         var step = form.querySelector('[data-step-id="education"]');
         if (step) step.querySelectorAll('.edu-row').forEach(function (r) {
             var label = (r.querySelector('.edu-row__label') || {}).textContent || '';
-            var ins = r.querySelectorAll('input');
-            var vals = Array.prototype.map.call(ins, function (i) { return i.value.trim(); });
-            if (vals.some(Boolean)) {
-                rows += '<tr><td>' + esc(label.replace('*', '').trim()) + '</td><td>' + esc(vals[0]) +
-                    '</td><td>' + esc(vals[1]) + '</td><td>' + esc(vals[2]) + '</td><td>' + esc(vals[3]) + '</td></tr>';
+            var fields = r.querySelectorAll('.edu-field');
+            var vals = Array.prototype.map.call(fields, function (i) { return i.value.trim(); });
+            var fileInp = r.querySelector('.edu-up__input');
+            var fileNm = (fileInp && fileInp.files && fileInp.files[0]) ? fileInp.files[0].name : '';
+            if (vals.some(Boolean) || fileNm) {
+                rows += '<tr><td>' + esc(label.replace('*', '').trim()) + '</td><td>' + esc(vals[0] || '') +
+                    '</td><td>' + esc(vals[1] || '') + '</td><td>' + esc(vals[2] || '') + '</td><td>' + esc(vals[3] || '') +
+                    '</td><td>' + (fileNm ? esc(fileNm) : '—') + '</td></tr>';
             }
         });
         if (!rows) return '<p class="pv-item__value is-empty">No qualifications entered.</p>';
-        return '<table class="pv-table"><thead><tr><th>Degree</th><th>Subjects</th><th>Institution</th><th>Month/Year</th><th>Marks</th></tr></thead><tbody>' + rows + '</tbody></table>';
+        return '<div class="pv-scroll"><table class="pv-table"><thead><tr><th>Degree</th><th>Subjects</th><th>Institution</th><th>Month/Year</th><th>Marks</th><th>Mark sheet</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
     function serviceTable(form) {
         var rows = '';
@@ -588,13 +704,13 @@
         if (step) step.querySelectorAll('[data-repeat-row]').forEach(function (r) {
             var ins = r.querySelectorAll('input');
             var vals = Array.prototype.map.call(ins, function (i) { return i.value.trim(); });
-            if (vals.some(Boolean)) {
+            if (vals.slice(0, 4).some(Boolean)) {
                 rows += '<tr><td>' + esc(vals[0]) + '</td><td>' + esc(vals[1]) + '</td><td>' + esc(vals[2]) +
                     '</td><td>' + esc(vals[3]) + '</td><td>' + esc(vals[4]) + '</td></tr>';
             }
         });
         if (!rows) return '';
-        return '<table class="pv-table"><thead><tr><th>Designation</th><th>Institution</th><th>From</th><th>To</th><th>Total</th></tr></thead><tbody>' + rows + '</tbody></table>';
+        return '<div class="pv-scroll"><table class="pv-table"><thead><tr><th>Designation</th><th>Institution</th><th>From</th><th>To</th><th>Total</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
     function projectsTable(form) {
         var rows = '';
@@ -605,7 +721,7 @@
             if (title.trim()) rows += '<tr><td>' + esc(title) + '</td><td>' + esc(status) + '</td></tr>';
         });
         if (!rows) return '';
-        return '<table class="pv-table" style="margin-bottom:12px"><thead><tr><th>Project / Start-up / Event</th><th>Outcome</th></tr></thead><tbody>' + rows + '</tbody></table>';
+        return '<div class="pv-scroll" style="margin-bottom:12px"><table class="pv-table"><thead><tr><th>Project / Start-up / Event</th><th>Outcome</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
     function aspirations(form) {
         var arr = Array.prototype.map.call(form.querySelectorAll('input[name="career_aspirations[]"]:checked'), function (c) { return c.value; });
@@ -633,12 +749,13 @@
             rows.map(function (p) { return '<li>' + esc(p[0]) + ': <strong>' + esc(p[1]) + '</strong></li>'; }).join('') + '</ul>';
     }
 
-    /* ───────────────────────── helpers ──────────────────────────── */
+    function toast(message, type) { if (window.rguToast) window.rguToast(message, type); }
     function formatSize(b) {
         if (b < 1024) return b + ' B';
         if (b < 1048576) return (b / 1024).toFixed(0) + ' KB';
         return (b / 1048576).toFixed(2) + ' MB';
     }
+    function currentYM() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2); }
     function esc(s) {
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
