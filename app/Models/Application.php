@@ -14,6 +14,7 @@ class Application extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'declaration'     => 'array',
         'completed_steps' => 'array',
         'dob'             => 'date',
         'submitted_at'          => 'datetime',

@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('payment_id')->unique();
             $table->string('transaction_id')->nullable()->index();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->foreignId('application_id')->constrained()->cascadeOnDelete();
             $table->decimal('amount', 10, 2);
             $table->enum('status', ['pending', 'success', 'failed', 'cancelled'])->default('pending')->index();

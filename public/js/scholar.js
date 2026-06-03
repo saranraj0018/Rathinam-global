@@ -781,9 +781,11 @@
         var inp = form.querySelector("[data-signature-input]");
         var prev = form.querySelector("[data-signature-preview]");
         if (!inp || !prev) return;
-        inp.addEventListener("input", function () {
+        var update = function () {
             prev.textContent = inp.value;
-        });
+        };
+        inp.addEventListener("input", update);
+        inp.addEventListener("change", update);
     }
 
     function initLiveErrorClearing(form) {
@@ -864,15 +866,6 @@
                 ? steps[i].getAttribute("data-step-id")
                 : "";
 
-            // Preview is locked until payment is confirmed
-            // if (targetId === "preview" && !paymentDone) {
-            //     toast(
-            //         "Complete payment to unlock the preview & submit.",
-            //         "error",
-            //     );
-            //     return;
-            // }
-
             steps.forEach(function (s, k) {
                 s.hidden = k !== i;
             });
@@ -885,7 +878,7 @@
             submitBtn.hidden = !isLast || !paymentDone;
             togglePayCta(targetId === "preview" && !paymentDone);
 
-            // Update tab states
+            // Update tab states (active = current, done = in completedSteps)
             tabs.forEach(function (t, k) {
                 var sid = steps[k] ? steps[k].getAttribute("data-step-id") : "";
                 var isDone = completedSteps.indexOf(sid) !== -1;
@@ -915,8 +908,13 @@
                 card.scrollIntoView({ behavior: "smooth", block: "start" });
         }
 
-        // Expose so hydrate can jump to the right step
-        form._wizardShow = show;
+        // Expose so hydrate can jump to the right step.
+        // Wrap show() so we know whether hydration has driven the first paint.
+        form._hydrated = false;
+        form._wizardShow = function (i) {
+            form._hydrated = true;
+            show(i);
+        };
 
         // Expose so hydrate can set state
         form._setWizardState = function (completed, paymentStatus) {
@@ -924,23 +922,16 @@
             paymentDone = paymentStatus === "paid";
         };
 
+        // Allow applyDraft to refresh the tab states without changing step
+        form._refreshTabs = function () {
+            show(current);
+        };
+
         /* ── "Save & Continue" ── */
         nextBtn.addEventListener("click", function () {
             if (!validateStep(steps[current])) return;
 
             var stepId = steps[current].getAttribute("data-step-id");
-
-            // ── Declaration: trigger payment instead of normal save ──
-            // if (stepId === "declaration") {
-            //     // Mark declaration completed
-            //     if (completedSteps.indexOf("declaration") === -1) {
-            //         completedSteps.push("declaration");
-            //     }
-
-            //     // Open Preview directly
-            //     show(stepIndex("preview"));
-            //     return;
-            // }
 
             // ── Non-data steps (e.g. future custom steps) ──
             if (STEP_DATA.indexOf(stepId) === -1) {
@@ -1045,8 +1036,12 @@
             );
         });
 
-        // Initial render at step 0; hydrateDraft() will call show() again with right index
-        show(0);
+        // Fallback: hydrateDraft normally drives the first paint and sets the
+        // correct active tab. If hydrate never fires (e.g. network error),
+        // fall back to showing step 0 so the form is still usable.
+        setTimeout(function () {
+            if (!form._hydrated) show(0);
+        }, 1500);
     }
 
     /* ══════════════════════════════════════════════════════════════════
@@ -1257,20 +1252,6 @@
                     ok = false;
                     firstBad = firstBad || f;
                 }
-                // if (
-                //     f.type === "tel" &&
-                //     !/^(\+?91[\-\s]?)?[6-9]\d{9}$/.test(
-                //         val.replace(/[\s\-]/g, ""),
-                //     )
-                // ) {
-                //     markInvalid(
-                //         stepEl,
-                //         f,
-                //         "Enter a valid 10-digit mobile number.",
-                //     );
-                //     ok = false;
-                //     firstBad = firstBad || f;
-                // }
             });
 
         if (firstBad) {
@@ -1334,7 +1315,11 @@
     }
 
     function applyDraft(form, res) {
-        if (!res || !res.success) return;
+        if (!res || !res.success) {
+            // No draft / failed → still need a first paint.
+            if (form._wizardShow) form._wizardShow(0);
+            return;
+        }
 
         // ── 1. Restore wizard state (completed tabs + payment) FIRST ──
         if (form._setWizardState) {
@@ -1389,14 +1374,21 @@
             );
         }
 
-        // ── 3. Jump to last saved step ──
-        if (form._wizardShow && res.current_step) {
-            var idx = STEP_IDS.indexOf(res.current_step);
-            if (idx > 0) {
-                setTimeout(function () {
-                    form._wizardShow(idx);
-                }, 150);
+        // ── 3. Jump to last saved step (and make that tab active) ──
+        var idx = 0;
+        if (res.current_step) {
+            idx = STEP_IDS.indexOf(res.current_step);
+            // current_step may be "payment" (not in STEP_IDS) → treat as preview
+            if (idx === -1 && res.current_step === "payment") {
+                idx = STEP_IDS.indexOf("preview");
             }
+            if (idx < 0) idx = 0;
+        }
+        if (form._wizardShow) {
+            // Small delay lets cascade/repeatable change events settle first.
+            setTimeout(function () {
+                form._wizardShow(idx);
+            }, 150);
         }
 
         // ── 4. Payment success toast (when redirected back from gateway) ──
@@ -2105,16 +2097,10 @@
     }
 
     // ── Pay Now (preview step) → initiatePayment → Cashfree redirect ─────────
-    // Wire this into your existing wizard JS (call initPayNow(form) once on load,
-    // or paste the listener block into your DOMContentLoaded setup).
-
     function initPayNow(form) {
         var btn = document.querySelector("[data-pay-now]");
         if (!btn) return;
 
-        // Adjust these to your actual route URLs.
-        // If you use named routes in Blade, render them into data-* attributes
-        // on the button instead of hardcoding here. See note below.
         var INITIATE_URL =
             btn.getAttribute("data-initiate-url") || "/apply/initiate-payment";
 
@@ -2150,7 +2136,6 @@
                 })
                 .then(function (r) {
                     if (r.ok && r.data && r.data.success && r.data.redirect) {
-                        // Go to your payment page, which opens Cashfree.
                         window.location.href = r.data.redirect;
                         return;
                     }

@@ -3,203 +3,192 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Application;
+use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
 class PaymentController extends Controller
 {
-    public function index()
+    /**
+     * Renders the Cashfree checkout page for a pending application payment.
+     * Reached via route('payment.application', ['payment_id' => ...]).
+     */
+    public function paymentApplication(Request $request, string $payment_id)
     {
         $user = Auth::guard('user')->user();
-        $slotId  = session('selected_slot_id');
+        abort_unless($user, 401);
 
-        if (!$slotId) {
-            return redirect()->route('account_slots')
-                ->with('error', 'Please select a slot first.');
+        // Load the payment and make sure it belongs to this user.
+        $payment = Payment::where('payment_id', $payment_id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        // Already paid? Don't re-charge — send back to the application.
+        if ($payment->status === 'success') {
+            return redirect()
+                ->route('scholar.create')
+                ->with('payment_success', true);
         }
 
-         $payment = Payment::where('application_id', $user->id)
-            ->where('status', 'pending')
-            ->latest()
-            ->first();
-        if (!$payment) {
-            $orderId = 'ORD_' . strtoupper(uniqid());
-            $payment = Payment::create([
-                'order_id' => $orderId,
-                'amount'   => 1,
-                'application_id'  => $user->id,
-                'status'   => 'pending',
-                'type'     => 'exam',
-            ]);
-        }
-
-        $this->data['order_id'] = $payment->order_id;
-
-        return view('frontend.payment')->with($this->data);
-    }
-
-    public function initiate(Request $request)
-    {
-        $request->validate([
-            'order_id' => 'required|exists:payments,order_id',
-        ]);
-
-        $payment = Payment::where('order_id', $request->order_id)->first();
-        $user = Auth::guard('user')->user();
-
-        $mode = str_contains(config('services.cashfree.base_url'), 'sandbox')
-            ? 'sandbox'
-            : 'production';
-
-        $phone = preg_replace('/\D/', '', $user->phone ?? '9999999999');
-        if (strlen($phone) === 12 && str_starts_with($phone, '91')) {
-            $phone = substr($phone, 2);
-        }
-        if (strlen($phone) !== 10) {
-            $phone = '9999999999';
-        }
-
-        // Always create a FRESH Cashfree order — never reuse old session_id
-        // Cashfree session IDs expire quickly and cause "payment_session_id_invalid"
-        // Generate a new unique order_id for each initiation attempt
-        $newOrderId = 'ORD_' . strtoupper(uniqid());
-
-        // Update the payment record with the new order_id and clear old gateway response
-        $payment->update([
-            'order_id'         => $newOrderId,
-            'gateway_response' => null,
-        ]);
-
-        $payload = [
-            "order_id"       => $newOrderId,
-            "order_amount"   => (float) number_format($payment->amount, 2, '.', ''),
-            "order_currency" => "INR",
-            "customer_details" => [
-                "customer_id"    => "STU_" . (string) $user->id,
-                "customer_name"  => $user->full_name ?? "Student",
-                "customer_email" => $user->email     ?? "student@example.com",
-                "customer_phone" => $phone,
-            ],
-            "order_meta" => [
-                "return_url" => str_replace('http://', 'https://', route('payment.success')) . "?order_id={order_id}",
-                "notify_url" => str_replace('http://', 'https://', route('payment.webhook')),
-            ],
-        ];
-
-        $response = $this->cashfreeHttp()->post(
-            config('services.cashfree.base_url') . '/orders',
-            $payload
+        // Resolve the applicant's phone: application first, then user.
+        $app   = Application::find($payment->application_id);
+        $phone = $this->normalizePhone(
+            ($app->mobile ?? null) ?: ($user->mobile ?? null) ?: ($user->phone ?? null)
         );
 
-        Log::info('Cashfree initiate', [
-            'status' => $response->status(),
-            'body'   => $response->body(),
-        ]);
-
-        if (!$response->successful()) {
-            return back()->with('error', 'Payment initiation failed: ' . $response->json('message', $response->body()));
+        if (!$phone) {
+            return redirect()
+                ->route('scholar.create')
+                ->with('payment_failed', 'A valid 10-digit mobile number (starting 6-9) is required before payment. Please update it in your application.');
         }
 
-        $data = $response->json();
+        $baseUrl = rtrim(config('services.cashfree.base_url'), '/');
 
-        if (empty($data['payment_session_id'])) {
-            return back()->with('error', 'Payment session could not be created. Please try again.');
-        }
+        // 1) Reuse an existing ACTIVE Cashfree order for this id, if any.
+        $sessionId = null;
 
-        // Save fresh session to DB
-        $payment->update([
-            'gateway_response' => json_encode($data),
-            'status'           => 'pending',
-        ]);
-
-        return view('frontend.cashfree-checkout', [
-            'sessionId' => $data['payment_session_id'],
-            'orderId'   => $newOrderId,
-            'mode'      => $mode,
-        ]);
-    }
-
-    public function webhook(Request $request)
-    {
-        Log::info('Cashfree webhook received', $request->all());
-
-        $data = $request->all();
-
-        if (
-            isset($data['data']['payment']['payment_status']) &&
-            $data['data']['payment']['payment_status'] === 'SUCCESS'
-        ) {
-            $orderId = $data['data']['order']['order_id'];
-            $payment = Payment::where('order_id', $orderId)->first();
-
-            if ($payment && $payment->status !== 'success') {
-                $payment->update([
-                    'status'         => 'success',
-                    'transaction_id' => $data['data']['payment']['cf_payment_id'] ?? null,
-                ]);
-
-                $user = \App\Models\User::find($payment->user_id);
-                if ($user) {
-                    SlotBooking::firstOrCreate(
-                        [
-                            'student_id' => $student->id,
-                            'slot_id'    => $payment->slot_id,
-                        ],
-                        [
-                            'status'       => 'confirmed',
-                            'reserved_at'  => now(),
-                            'confirmed_at' => now(),
-                            'expires_at'   => null,
-                        ]
-                    );
-                }
+        $existing = $this->cashfreeHttp()->get($baseUrl . "/orders/{$payment->payment_id}");
+        if ($existing->successful()) {
+            $existingData = $existing->json();
+            if (
+                !empty($existingData['payment_session_id']) &&
+                ($existingData['order_status'] ?? null) === 'ACTIVE'
+            ) {
+                $sessionId = $existingData['payment_session_id'];
             }
         }
 
-        return response()->json(['status' => 'ok']);
+        // 2) Otherwise create a fresh Cashfree order.
+        if (!$sessionId) {
+            $cf = $this->cashfreeHttp()->post($baseUrl . '/orders', [
+                'order_id'       => $payment->payment_id,   // Cashfree's required field name
+                'order_amount'   => (float) $payment->amount,
+                'order_currency' => 'INR',
+                'customer_details' => [
+                    'customer_id'    => (string) $user->id,
+                    'customer_name'  => $user->name ?? 'Applicant',
+                    'customer_email' => $user->email ?? 'noemail@example.com',
+                    'customer_phone' => $phone,
+                ],
+                'order_meta' => [
+                    'return_url' => route('payment.success', ['payment_id' => $payment->payment_id]),
+                ],
+            ]);
+
+            $data = $cf->json();
+
+            if (!$cf->successful() || empty($data['payment_session_id'])) {
+                Log::error('Cashfree order create failed', [
+                    'payment_id' => $payment->payment_id,
+                    'status'     => $cf->status(),
+                    'response'   => $data,
+                ]);
+                return redirect()
+                    ->route('scholar.create')
+                    ->with('payment_failed', 'Could not start payment. Please try again.');
+            }
+
+            $sessionId = $data['payment_session_id'];
+        }
+
+        return view('scholar.payment', [
+            'paymentSessionId' => $sessionId,
+            'orderId'          => $payment->payment_id,
+            'mode'             => $this->cashfreeMode(),
+        ]);
     }
 
-    public function success(Request $request)
+    public function initiatePayment(Request $request)
     {
-        $orderId = $request->order_id;
-        $payment = Payment::where('order_id', $orderId)->first();
-        $student = Auth::guard('student')->user();
+        try {
+            $user = Auth::guard('user')->user();
+            abort_unless($user, 401);
+
+            $app = Application::where('user_id', $user->id)
+                ->where('status', 'draft')
+                ->latest('id')
+                ->first();
+
+            abort_unless($app, 404, 'No application found.');
+
+            $app->current_step   = 'payment';
+            $app->payment_status = 'payment_pending';
+            $app->save();
+
+            $payment = Payment::where('application_id', $app->id)
+                ->where('status', 'pending')
+                ->latest()
+                ->first();
+
+            if (!$payment) {
+                $payment = Payment::create([
+                    'payment_id'     => 'APPL_' . strtoupper(uniqid()),
+                    'amount'         => 500,
+                    'application_id' => $app->id,
+                    'user_id'        => $user->id,
+                    'status'         => 'pending',
+                    'type'           => 'application',
+                ]);
+            }
+
+            return response()->json([
+                'success'    => true,
+                'payment_id' => $payment->payment_id,
+                'redirect'   => route('payment.application', ['payment_id' => $payment->payment_id]),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('initiatePayment failed', ['msg' => $e->getMessage(), 'line' => $e->getLine()]);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),   // remove in production
+            ], 500);
+        }
+    }
+
+    /** Called by payment gateway after success (return_url). */
+    public function paymentSuccess(Request $request, string $payment_id)
+    {
+        $payment = Payment::where('payment_id', $payment_id)->first();
+        abort_unless($payment, 404);
 
         $response = $this->cashfreeHttp()
-            ->get(config('services.cashfree.base_url') . "/orders/{$orderId}/payments");
-
+            ->get(rtrim(config('services.cashfree.base_url'), '/') . "/orders/{$payment_id}/payments");
         $data = $response->json();
 
-        Log::info('Cashfree success verify', [
-            'order_id' => $orderId,
-            'response' => $data,
-        ]);
-
-        if (!empty($data[0]) && $data[0]['payment_status'] === 'SUCCESS') {
-
+        if (!empty($data[0]) && ($data[0]['payment_status'] ?? null) === 'SUCCESS') {
             $payment->update([
                 'status'         => 'success',
                 'transaction_id' => $data[0]['cf_payment_id'] ?? null,
             ]);
 
-            SlotBooking::firstOrCreate(
-                [
-                    'student_id' => $student->id,
-                    'slot_id'    => $payment->slot_id,
-                ],
-                [
-                    'status'       => 'confirmed',
-                    'confirmed_at' => now(),
-                    'expires_at'   => null,
-                ]
-            );
+            $app = Application::find($payment->application_id);
+            if ($app) {
+                $completed = $app->completed_steps ?? [];
+                if (!in_array('payment', $completed)) {
+                    $completed[] = 'payment';
+                }
+                $app->completed_steps = $completed;
+                $app->current_step    = 'preview';
+                $app->payment_status  = 'paid';
+                $app->status          = 'draft'; // still draft until final submit
+                $app->save();
+            }
 
-            return redirect()->route('registration_confirm')
-                ->with('success', 'Payment successful');
+            return redirect()->route('scholar.create')->with('payment_success', true);
         }
 
-        return redirect('/payment')->with('error', 'Payment failed or pending.');
+        Log::warning('Payment not successful on verify', [
+            'payment_id' => $payment_id,
+            'response'   => $data,
+        ]);
+
+        return redirect()->route('scholar.create')->with('payment_failed', true);
     }
+
+    /* ───────────────────────── helpers ───────────────────────── */
 
     private function cashfreeHttp()
     {
@@ -216,5 +205,34 @@ class PaymentController extends Controller
         }
 
         return $http;
+    }
+
+    /**
+     * Derive the SDK mode from the configured base_url so it can never
+     * disagree with the credentials/endpoint actually in use.
+     */
+    private function cashfreeMode(): string
+    {
+        $base = (string) config('services.cashfree.base_url');
+        return str_contains($base, 'sandbox') ? 'sandbox' : 'production';
+    }
+
+    /**
+     * Clean and validate an Indian mobile number.
+     * Returns a 10-digit string starting 6-9, or null if invalid.
+     */
+    private function normalizePhone(?string $phone): ?string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $phone);
+
+        // strip a leading country code / trunk prefix
+        if (strlen($digits) === 12 && str_starts_with($digits, '91')) {
+            $digits = substr($digits, 2);
+        }
+        if (strlen($digits) === 11 && str_starts_with($digits, '0')) {
+            $digits = substr($digits, 1);
+        }
+
+        return preg_match('/^[6-9]\d{9}$/', $digits) ? $digits : null;
     }
 }

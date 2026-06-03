@@ -8,6 +8,7 @@ use App\Models\School;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -101,7 +102,7 @@ class ScholarApplicationController extends Controller
             'draft'            => $draft,
             'enclosureStatus'  => $enclosureStatus,   // <-- new
         ]);
-        }
+    }
 
 
     private function stepRules(string $step): array
@@ -201,7 +202,9 @@ class ScholarApplicationController extends Controller
         }
 
         $app->load(['languages', 'educations', 'services', 'projects', 'courses', 'aspirations', 'enclosures', 'documents']);
-
+        $decl = is_array($app->declaration)
+            ? $app->declaration
+            : (json_decode($app->declaration, true) ?: []);
         $payload = [
             'school'               => $app->school,        // <-- now returned for rehydration
             'discipline'           => $app->discipline,    // <-- now returned for rehydration
@@ -230,6 +233,11 @@ class ScholarApplicationController extends Controller
             'total_service_months' => $app->total_service_months,
             'career_other'         => $app->career_other,
             'enclosures_confirm'   => (bool) $app->enclosures_confirm,
+            // ── declaration (read from the JSON `declaration` column) ──
+            'declaration_agree'     => (bool) ($decl['agree'] ?? false),
+            'declaration_date'      => $decl['date'] ?? null,
+            'declaration_station'   => $decl['station'] ?? null,
+            'declaration_signature' => $decl['signature'] ?? null,
             'languages'            => $app->languages->map(fn($l) => [
                 'name'   => $l->language,
                 'skills' => array_values(array_filter([
@@ -325,81 +333,7 @@ class ScholarApplicationController extends Controller
  *  declaration step (that already happened). It just creates/reuses the
  *  payment order and returns the redirect URL to Cashfree. */
 
-    public function initiatePayment(Request $request)
-    {
-        $app  = $this->currentDraft();
-        $user = Auth::guard('user')->user();
-        abort_unless($app, 404);
 
-        // Guard: declaration must be completed before paying.
-        $completed = $app->completed_steps ?? [];
-        abort_unless(in_array('declaration', $completed, true), 422, 'Please complete the declaration first.');
-
-        $app->current_step = 'payment';
-        $app->payment_status       = 'payment_pending';
-        $app->save();
-
-        // Create or reuse a pending payment record.
-        $payment = \App\Models\Payment::where('application_id', $app->id)
-            ->where('status', 'pending')
-            ->latest()
-            ->first();
-
-        if (!$payment) {
-            $orderId = 'ORD_' . strtoupper(uniqid());
-            $payment = \App\Models\Payment::create([
-                'order_id'       => $orderId,
-                'amount'         => 500, // application fee
-                'application_id' => $app->id,
-                'user_id'        => $user->id,
-                'status'         => 'pending',
-                'type'           => 'application',
-            ]);
-        }
-
-        return response()->json([
-            'success'  => true,
-            'order_id' => $payment->order_id,
-            'redirect' => route('payment.application', ['order_id' => $payment->order_id]),
-        ]);
-    }
-
-    /** Called by payment gateway after success */
-    public function paymentSuccess(Request $request)
-    {
-        $orderId = $request->order_id;
-        $payment = Payment::where('order_id', $orderId)->first();
-        abort_unless($payment, 404);
-
-        // Verify with Cashfree
-        $response = $this->cashfreeHttp()
-            ->get(config('services.cashfree.base_url') . "/orders/{$orderId}/payments");
-        $data = $response->json();
-
-        if (!empty($data[0]) && $data[0]['payment_status'] === 'SUCCESS') {
-            $payment->update([
-                'status'         => 'success',
-                'transaction_id' => $data[0]['cf_payment_id'] ?? null,
-            ]);
-
-            $app = Application::find($payment->application_id);
-            if ($app) {
-                $completed = $app->completed_steps ?? [];
-                if (!in_array('payment', $completed)) {
-                    $completed[] = 'payment';
-                }
-                $app->completed_steps = $completed;
-                $app->current_step    = 'preview';
-                $app->payment_status  = 'paid';
-                $app->status          = 'draft'; // still draft until final submit
-                $app->save();
-            }
-
-            return redirect()->route('scholar.apply')->with('payment_success', true);
-        }
-
-        return redirect()->route('scholar.apply')->with('payment_failed', true);
-    }
 
     /** Final submit after preview */
     public function submit(Request $request)
@@ -694,20 +628,5 @@ class ScholarApplicationController extends Controller
         return view('scholar.thank-you');
     }
 
-    private function cashfreeHttp()
-    {
-        $http = Http::withHeaders([
-            'x-client-id'     => config('services.cashfree.app_id'),
-            'x-client-secret' => config('services.cashfree.secret_key'),
-            'x-api-version'   => '2022-09-01',
-            'Content-Type'    => 'application/json',
-            'Accept'          => 'application/json',
-        ]);
-
-        if (app()->environment('local')) {
-            $http = $http->withoutVerifying();
-        }
-
-        return $http;
-    }
+   
 }
