@@ -1,6 +1,4 @@
-{{-- STEP 7 — List of Enclosures
-     Backend field names: enclosures[<key>] (checklist), noc_document (file, PT),
-       service_certificate (file, PT), equivalence_cert (file), enclosures_confirm --}}
+
 <section class="wizard-step" data-step="6" data-step-id="enclosures" hidden>
     <div class="step-head">
         <span class="step-kicker">Enclosures</span>

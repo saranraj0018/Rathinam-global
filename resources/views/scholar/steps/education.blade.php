@@ -1,9 +1,4 @@
-{{-- STEP 3 — Educational Qualification
-     Backend field names: education[<level>][subjects|institution|passing|marks],
-       education_documents (file — single merged PDF/image of all mark sheets) --}}
 @php
-    // Bachelor's is the universal minimum (FT / PT / Integrated / Start-up all hold a UG).
-    // Master's is left optional so Integrated applicants are not wrongly blocked.
     $requiredLevels = ['bachelor'];
 @endphp
 <section class="wizard-step" data-step="2" data-step-id="education" hidden>

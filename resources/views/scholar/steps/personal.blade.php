@@ -1,10 +1,3 @@
-{{-- STEP 2 — Personal details
-     Backend field names: full_name, dob, age, gender, single_girl_child,
-       mother_tongue, languages[i][name], languages[i][skills][],
-       nationality, religion, community, community_cert (file),
-       differently_abled, disability_cert (file),
-       father_name, mother_name, mobile, email,
-       address_current, address_permanent, address_same --}}
 <section class="wizard-step" data-step="1" data-step-id="personal" hidden>
     <div class="step-head">
         <span class="step-kicker">Section 3 — 13</span>
