@@ -2,7 +2,8 @@
     <div class="step-head">
         <span class="step-kicker">Almost done</span>
         <h2 class="step-title">Preview your Application</h2>
-        <p class="step-desc">Review every detail below. Use <em>Back</em> to fix anything, then pay the application fee to submit. You can also save a PDF copy.</p>
+        <p class="step-desc">Review every detail below. Use <em>Back</em> to fix anything, then pay the application fee
+            to submit. You can also save a PDF copy.</p>
     </div>
 
     <div class="preview-toolbar">
@@ -30,11 +31,13 @@
     <div class="pay-cta">
         <div class="pay-cta__info">
             <span class="pay-cta__label">Application Fee</span>
-            <span class="pay-cta__amount">₹500</span>
+            <span class="pay-cta__amount">₹1</span>
         </div>
+        @if ($payment_status != 'paid')
         <button type="button" class="btn btn-primary btn-pay" data-pay-now>
             Pay Now &amp; Submit →
         </button>
+        @endif
     </div>
     <p class="f-error" data-error-for="payment"></p>
 </section>

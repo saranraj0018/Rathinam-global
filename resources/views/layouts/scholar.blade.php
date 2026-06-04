@@ -2,14 +2,14 @@
 <html lang="en">
 
 <head>
-   <meta charset="UTF-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="description"
         content="Rathinam Global University — Application Form for Admission to Ph.D. (Doctoral Programmes 2026–27)." />
     <meta name="theme-color" content="#080810" />
     <title>@yield('title', 'Ph.D. Application — Rathinam Global University')</title>
-
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     {{-- Google Fonts: Sora + DM Sans (theme) and Great Vibes (handwritten signature) --}}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -31,11 +31,18 @@
     <main id="top">
         @yield('content')
     </main>
- <div id="toast-container" class="fixed top-5 right-5 space-y-2 z-50"></div>
+    <div id="toast-container" class="fixed top-5 right-5 space-y-2 z-50"></div>
     @include('partials.footer')
-
-    <script src="{{ asset('js/toast.js') }}"></script>
-    <script src="{{ asset('js/scholar.js') }}"></script>
+    <script src="//unpkg.com/alpinejs" defer></script>
+    <script>
+        window.AppRoutes = {
+            draft: "{{ route('scholar.draft') }}",
+            step: "{{ route('scholar.step', ['step' => ':step']) }}",
+            initiatePayment: "{{ route('scholar.payment.initiate') }}"
+        };
+    </script>
+    <script src="{{ asset('js/toast.js') }}?v=1.0.1"></script>
+    <script src="{{ asset('js/scholar.js') }}?v=1.0.1"></script>
     @stack('scripts')
 </body>
 

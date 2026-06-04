@@ -126,7 +126,7 @@ class PaymentController extends Controller
             if (!$payment) {
                 $payment = Payment::create([
                     'payment_id'     => 'APPL_' . strtoupper(uniqid()),
-                    'amount'         => 500,
+                    'amount'         => 1,
                     'application_id' => $app->id,
                     'user_id'        => $user->id,
                     'status'         => 'pending',

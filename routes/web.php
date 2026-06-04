@@ -27,7 +27,7 @@ Route::middleware(['auth:user'])->group(function () {
     Route::get('/apply/draft',              [ScholarApplicationController::class, 'draft'])->name('scholar.draft');
     Route::post('/apply/step/{step}',       [ScholarApplicationController::class, 'saveStep'])->name('scholar.step');
     Route::post('/apply/initiate-payment',  [PaymentController::class, 'initiatePayment'])->name('scholar.payment.initiate');
-Route::get('/payment/application/{payment_id}', [PaymentController::class, 'paymentApplication'])
+    Route::get('/payment/application/{payment_id}', [PaymentController::class, 'paymentApplication'])
     ->name('payment.application');
        Route::get('/payment/success/{payment_id}', [PaymentController::class, 'paymentSuccess'])
     ->name('payment.success');

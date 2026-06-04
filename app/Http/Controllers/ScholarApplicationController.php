@@ -64,10 +64,12 @@ class ScholarApplicationController extends Controller
 
         return $status;
     }
+
     public function create(): View
     {
         $user = Auth::guard('user')->user();
         $app  = $this->currentDraft();
+        $application = Application::where('id', $user->id)->first();
 
         $draft = [];
         $enclosureStatus = [];
@@ -82,6 +84,7 @@ class ScholarApplicationController extends Controller
                 'specialization_other' => $app->specialization_other,
                 'programme_mode'       => $app->programme_mode,
                 'enclosures_confirm'   => (bool) $app->enclosures_confirm,
+                'payment_status'  =>  $app->payment_status ?? 'payment_pending',
                 'enclosures' => $app->enclosures
                     ->mapWithKeys(fn($e) => [$e->enclosure_key => (bool) $e->checked])
                     ->all(),
@@ -100,7 +103,8 @@ class ScholarApplicationController extends Controller
             'data'             => config('scholar'),
             'user'             => $user,
             'draft'            => $draft,
-            'enclosureStatus'  => $enclosureStatus,   // <-- new
+            'status' =>  $application->status ?? '',
+            'enclosureStatus'  => $enclosureStatus,
         ]);
     }
 
@@ -114,7 +118,7 @@ class ScholarApplicationController extends Controller
                 'discipline'           => ['nullable', 'string', 'max:255'],
                 'specialization'       => ['nullable', 'string', 'max:255'],
                 'specialization_other' => ['nullable', 'string', 'max:255'],
-                'programme_mode'       => ['nullable', Rule::in(['full_time', 'part_time', 'FT', 'PT'])],
+                'programme_mode'       => ['nullable', Rule::in(['full_time', 'part_time', 'FT-Startup', 'Integrated'])],
             ],
             'personal' => [
                 'full_name'         => ['nullable', 'string', 'max:255'],
@@ -174,12 +178,6 @@ class ScholarApplicationController extends Controller
         };
     }
 
-    // In your migration / add these columns to applications table
-    // $table->string('school')->nullable();
-    // $table->string('discipline')->nullable();
-    // $table->string('current_step')->default('programme');
-    // $table->string('payment_status')->default('unpaid'); // unpaid | paid
-    // $table->string('submitted_at')->nullable();
 
     public function draft(Request $request)
     {
@@ -287,9 +285,9 @@ class ScholarApplicationController extends Controller
 
     public function saveStep(Request $request, string $step)
     {
+
         $data = $request->validate($this->stepRules($step));
         $app  = $this->currentDraft(orCreate: true);
-
         match ($step) {
             'programme'   => $this->saveProgramme($app, $request, $data),
             'personal'    => $this->savePersonal($app, $request, $data),
@@ -415,8 +413,6 @@ class ScholarApplicationController extends Controller
 
     private function saveProgramme(Application $app, Request $r, array $d): void
     {
-        // The specialization <select> sends "__other__" when the user picks
-        // "Other (please specify)" — fall back to the free-text field then.
         $specialization = $d['specialization'] ?? null;
         if ($specialization === '__other__' || $specialization === null || $specialization === '') {
             $specialization = $d['specialization_other'] ?? $specialization;
@@ -610,6 +606,8 @@ class ScholarApplicationController extends Controller
     {
         return match ($mode) {
             'PT', 'part_time' => 'part_time',
+            'Startup Based Ph.D', 'FT-Startup' => 'FT-Startup',
+            'Integrated PG + Ph.D', 'Integrated' =>  'Integrated PG + Ph.D',
             default           => 'full_time',
         };
     }
@@ -619,7 +617,7 @@ class ScholarApplicationController extends Controller
     {
         return [
             'schools'         => [],          // your cascade JSON
-            'programme_modes' => ['full_time' => 'Full Time', 'part_time' => 'Part Time'],
+            'programme_modes' => ['full_time' => 'Full Time', 'part_time' => 'Part Time', 'FT-Startup' => 'Startup Based Ph.D', 'Integrated' => 'Integrated PG + Ph.D'],
         ];
     }
 
@@ -627,6 +625,4 @@ class ScholarApplicationController extends Controller
     {
         return view('scholar.thank-you');
     }
-
-   
 }

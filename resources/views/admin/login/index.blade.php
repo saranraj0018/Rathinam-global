@@ -116,9 +116,9 @@
                             @enderror
                         </div>
 
-                        <div class="flex justify-end -mt-2">
+                        {{-- <div class="flex justify-end -mt-2">
                             <a href="#" class="text-[13px]" style="color:rgba(201,163,90,0.85);">Forgot Password?</a>
-                        </div>
+                        </div> --}}
 
                         <button type="submit"
                             class="w-full h-[48px] rounded-full text-[14px] font-semibold transition hover:opacity-90"

@@ -875,7 +875,9 @@
             var isLast = i === steps.length - 1;
             nextBtn.hidden = isLast;
             // On the preview step: show Submit only if paid; otherwise show Pay CTA.
-            submitBtn.hidden = !isLast || !paymentDone;
+            if (submitBtn) {
+                submitBtn.hidden = !isLast || !paymentDone;
+            }
             togglePayCta(targetId === "preview" && !paymentDone);
 
             // Update tab states (active = current, done = in completedSteps)
@@ -1015,11 +1017,13 @@
                 "POST",
                 function (res) {
                     if (res && res.success) {
+                        console.log("test0");
                         showToast(res.message, "success", 2000);
                         setTimeout(function () {
                             window.location.href = res.redirect;
                         }, 600);
                     } else {
+                        console.log("test00");
                         toast(
                             (res && res.message) || "Could not submit.",
                             "error",
@@ -1029,6 +1033,7 @@
                     }
                 },
                 function (err) {
+                    console.log("test000");
                     showServerErr(err);
                     submitBtn.disabled = false;
                     submitBtn.textContent = "Submit Application";
@@ -1049,8 +1054,27 @@
     ══════════════════════════════════════════════════════════════════ */
     function saveStep(form, stepId, onOk, onFail) {
         var fd = collectStep(form, stepId);
+
+        // Build URL and verify the placeholder was actually replaced
+        var stepUrl = window.AppRoutes.step.replace(":step", stepId);
+
+        if (
+            stepUrl.indexOf(":step") !== -1 ||
+            stepUrl.indexOf("STEP_PLACEHOLDER") !== -1
+        ) {
+            console.error(
+                "Step URL placeholder not replaced:",
+                stepUrl,
+                "stepId:",
+                stepId,
+            );
+            toast("Internal error building request URL.", "error");
+            if (onFail) onFail();
+            return;
+        }
+
         sendRequest(
-            "/apply/step/" + stepId,
+            stepUrl,
             fd,
             "POST",
             function (res) {
@@ -1281,9 +1305,10 @@
        HYDRATE DRAFT  (on page load — resume last saved state)
     ══════════════════════════════════════════════════════════════════ */
     function hydrateDraft(form) {
+        var draftUrl = window.AppRoutes.draft;
         if (window.jQuery) {
             $.ajax({
-                url: "/apply/draft",
+                url: draftUrl,
                 method: "GET",
                 headers: {
                     "X-Requested-With": "XMLHttpRequest",
@@ -1297,7 +1322,7 @@
                 },
             });
         } else {
-            fetch("/apply/draft", {
+            fetch(draftUrl, {
                 credentials: "same-origin",
                 headers: {
                     "X-Requested-With": "XMLHttpRequest",
@@ -1415,7 +1440,10 @@
     function setField(form, name, value) {
         if (value === null || value === undefined) return;
         var els = form.querySelectorAll('[name="' + cssEsc(name) + '"]');
-        if (!els.length) return;
+       if (!els.length) {
+           console.warn("[hydrate] no field for:", name, "=", value); // ← add this
+           return;
+       }
         var first = els[0];
         if (first.type === "radio") {
             els.forEach(function (r) {
@@ -1631,6 +1659,7 @@
             }
         });
     }
+    const draft = window.__APP_DRAFT__ || {};
 
     /* ══════════════════════════════════════════════════════════════════
        PREVIEW
@@ -2100,9 +2129,9 @@
     function initPayNow(form) {
         var btn = document.querySelector("[data-pay-now]");
         if (!btn) return;
-
+        var initiatePayment = window.AppRoutes.initiatePayment;
         var INITIATE_URL =
-            btn.getAttribute("data-initiate-url") || "/apply/initiate-payment";
+            btn.getAttribute("data-initiate-url") || initiatePayment;
 
         function csrf() {
             var m = document.querySelector('meta[name="csrf-token"]');

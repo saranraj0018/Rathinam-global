@@ -13,40 +13,51 @@
 
             <form id="signupForm" method="POST" action="{{ route('auth.register.store') }}" novalidate>
                 @csrf
-                <x-text-field name="name" label="Full Name" required
-                              placeholder="Your full name" autocomplete="name" />
-
-                <x-text-field name="phone_number" label="Phone Number" type="tel" required
-                              placeholder="10-digit mobile" autocomplete="tel" />
-
-                <x-text-field name="email" label="Email" type="email" required
-                              placeholder="you@example.com" autocomplete="email" />
-
+                <x-text-field name="name" label="Full Name" required placeholder="Your full name" autocomplete="name" />
+                <x-text-field name="phone_number" label="Phone Number" type="tel" required placeholder="10-digit mobile"
+                    autocomplete="tel" />
+                <x-text-field name="email" label="Email" type="email" required placeholder="you@example.com"
+                    autocomplete="email" />
                 <div class="f-group">
                     <label for="password" class="f-label">Password <span class="f-req">*</span></label>
                     <div class="pw">
-                        <input type="password" id="password" name="password" class="f-input"
-                               autocomplete="new-password" required>
-                        <button type="button" class="pw__toggle" data-pw-toggle>Show</button>
+                        <div x-data="{ showConfirm: false }">
+                            <div class="relative">
+                                <input :type="showConfirm ? 'text' : 'password'" name="password" class="f-input pr-10">
+                                <button type="button" @click="showConfirm = !showConfirm"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                    <i x-show="!showConfirm" class="fa fa-eye-slash"></i>
+                                    <i x-show="showConfirm" class="fa fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {{-- <button type="button" class="pw__toggle" data-pw-toggle>Show</button> --}}
                     </div>
-                    <p class="f-hint">At least 8 characters, including letters and numbers.</p>
+                    {{-- <p class="f-hint">At least 8 characters, including letters and numbers.</p> --}}
                     <p class="f-error" data-error-for="password"></p>
                 </div>
-
                 <div class="f-group">
                     <label for="password_confirmation" class="f-label">Confirm Password <span class="f-req">*</span></label>
                     <div class="pw">
-                        <input type="password" id="password_confirmation" name="password_confirmation" class="f-input"
-                               autocomplete="new-password" required>
-                        <button type="button" class="pw__toggle" data-pw-toggle>Show</button>
+                        <div x-data="{ showConfirm: false }">
+                            <div class="relative">
+                                <input :type="showConfirm ? 'text' : 'password'" name="password_confirmation"
+                                    class="f-input pr-10">
+
+                                <button type="button" @click="showConfirm = !showConfirm"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                    <i x-show="!showConfirm" class="fa fa-eye-slash"></i>
+                                    <i x-show="showConfirm" class="fa fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {{-- <button type="button" class="pw__toggle" data-pw-toggle>Show</button> --}}
                     </div>
                     <p class="f-error" data-error-for="password_confirmation"></p>
                 </div>
-
                 <button type="submit" class="btn btn-primary">Create Account</button>
             </form>
-
-            <p class="auth__alt">Already have an account? <a href="{{ route('auth.login') }}">Sign in</a></p>
+            <p class="auth__alt">Already have an account? <a href="{{ route('auth.login') }}">Sign In</a></p>
         </div>
     </div>
 @endsection
