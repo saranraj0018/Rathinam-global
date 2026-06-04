@@ -65,6 +65,7 @@
         initCascade(form);
         initUploads(form);
         initEduUploads(form);
+        initEduSavedFiles(form);
         initReveals(form);
         initRepeatables(form);
         initLanguages(form);
@@ -541,6 +542,36 @@
             sync();
         });
     }
+
+    function initEduSavedFiles(form) {
+    // When a saved marksheet exists, enable that row's file input even before
+    // the text fields are (re)validated, and wire up the "remove saved" button.
+    form.querySelectorAll("[data-removed-flag]").forEach(function (flag) {
+        var docType = flag.getAttribute("data-removed-flag");
+        var wrap = flag.closest("[data-edu-upload]");
+        var input = wrap ? wrap.querySelector(".edu-up__input") : null;
+
+        var removeBtn = form.querySelector(
+            '[data-remove-saved="' + docType + '"]',
+        );
+        if (!removeBtn) return;
+
+        removeBtn.addEventListener("click", function () {
+            // Mark for server-side deletion
+            flag.value = "1";
+
+            // Hide the saved preview box
+            var box = document.getElementById("saved-" + docType);
+            if (box) box.hidden = true;
+
+            // Re-impose "required" so the user must re-upload (only if the
+            // row is required — data-required was cleared by hydrateFiles)
+            if (input && wrap && wrap.getAttribute("data-was-required") === "1") {
+                input.setAttribute("data-required", "true");
+            }
+        });
+    });
+}
 
     /* ══════════════════════════════════════════════════════════════════
        REVEALS
@@ -1674,16 +1705,27 @@
                 previewBox.hidden = false;
             }
 
-            // ── Locate the matching file input ──
-            var inp = form.querySelector(
-                'input[type="file"][name="' + cssEsc(docType) + '"]',
-            );
-            if (!inp) return;
+           // ── Locate the matching file input ──
+        var inp = form.querySelector(
+            'input[type="file"][name="' + cssEsc(docType) + '"]',
+        );
+        if (!inp) return;
 
-            // ── A saved file already exists → upload is no longer mandatory ──
-            inp.required = false;
-            inp.removeAttribute("required");
-            inp.removeAttribute("data-required");
+        if (inp.classList.contains("edu-up__input")) {
+            inp.disabled = false;
+            var euWrap = inp.closest("[data-edu-upload]");
+            if (euWrap) {
+                euWrap.classList.remove("is-locked");
+                // remember it was required so "remove saved" can restore it
+                if (inp.getAttribute("data-required") === "true") {
+                    euWrap.setAttribute("data-was-required", "1");
+                }
+            }
+        }
+    
+        inp.required = false;
+        inp.removeAttribute("required");
+        inp.removeAttribute("data-required");   // <-- this clears it, so the block above must run first
 
             var group =
                 inp.closest(".js-upload, [data-edu-upload], .f-group") ||

@@ -490,24 +490,51 @@ if ($isAbled) {
         }
     }
 
-    private function saveEducation(Application $app, Request $r, array $d): void
-    {
-        $app->educations()->delete();
-        foreach ((array) $r->input('education', []) as $level => $row) {
-            $hasData = collect($row)->filter(fn($v) => filled($v))->isNotEmpty();
-            if (!$hasData) continue;
-            $passing = $row['passing'] ?? null; // "Y-m"
-            $app->educations()->create([
-                'education_level' => $level,
-                'subjects'        => $row['subjects'] ?? null,
-                'institution'     => $row['institution'] ?? null,
-                'passing_date'    => $passing ? $passing . '-01' : null,
-                'marks'           => $row['marks'] ?? null,
-            ]);
+   private function saveEducation(Application $app, Request $r, array $d): void
+{
+    $app->educations()->delete();
+
+    foreach ((array) $r->input('education', []) as $level => $row) {
+        $hasData = collect($row)
+            ->except(['marksheet_removed'])           // ignore the flag for emptiness check
+            ->filter(fn($v) => filled($v))
+            ->isNotEmpty();
+
+        // Handle removal of a previously-saved marksheet for this level
+        $removed = ($row['marksheet_removed'] ?? '0') === '1';
+        if ($removed) {
+            $this->deleteDocument($app, "marksheet_$level");
+        }
+
+        if (!$hasData) continue;
+
+        $passing = $row['passing'] ?? null; // "Y-m"
+        $app->educations()->create([
+            'education_level' => $level,
+            'subjects'        => $row['subjects'] ?? null,
+            'institution'     => $row['institution'] ?? null,
+            'passing_date'    => $passing ? $passing . '-01' : null,
+            'marks'           => $row['marks'] ?? null,
+        ]);
+
+        // New upload replaces the existing one (updateOrCreate inside storeFile).
+        // Only store if not flagged removed in the same request.
+        if (!$removed) {
             $this->storeFile($app, $r, "education.$level.marksheet", "marksheet_$level");
         }
-        $app->save();
     }
+
+    $app->save();
+}
+
+private function deleteDocument(Application $app, string $docType): void
+{
+    $doc = $app->documents()->where('document_type', $docType)->first();
+    if ($doc) {
+        Storage::disk('public')->delete($doc->file_path);
+        $doc->delete();
+    }
+}
 
     private function saveEligibility(Application $app, Request $r, array $d): void
     {

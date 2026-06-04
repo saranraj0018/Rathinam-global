@@ -43,19 +43,31 @@
                     <input type="text" name="education[{{ $key }}][marks]" class="f-input f-input--sm edu-field" @if($req) data-required="true" @endif>
                 </div>
                 <div class="edu-cell edu-cell--file" data-cell="Mark sheet">
-                    <div class="edu-up" data-edu-upload>
-                        <label class="edu-up__label">
-                            <input type="file" name="education[{{ $key }}][marksheet]" accept=".pdf,.docx,.jpg,.jpeg,.png"
-                                   class="sr-only edu-up__input" @if($req) data-required="true" @endif disabled>
-                            <span class="edu-up__btn">⬆ Upload</span>
-                        </label>
-                        <span class="edu-up__file" hidden>
-                            <span class="edu-up__name"></span>
-                            <button type="button" class="edu-up__remove" aria-label="Remove file">&times;</button>
-                        </span>
-                    </div>
-                    <p class="f-error" data-error-for="education[{{ $key }}][marksheet]"></p>
-                </div>
+    <div class="edu-up" data-edu-upload>
+        <label class="edu-up__label">
+            <input type="file" name="education[{{ $key }}][marksheet]" accept=".pdf,.docx,.jpg,.jpeg,.png"
+                   class="sr-only edu-up__input" @if($req) data-required="true" @endif disabled>
+            <span class="edu-up__btn">⬆ Upload</span>
+        </label>
+        <span class="edu-up__file" hidden>
+            <span class="edu-up__name"></span>
+            <button type="button" class="edu-up__remove" aria-label="Remove file">&times;</button>
+        </span>
+
+        {{-- Saved marksheet preview (populated by hydrateFiles) --}}
+        <div id="saved-marksheet_{{ $key }}" hidden class="saved-preview edu-up__saved">
+            <a data-saved-url="marksheet_{{ $key }}" target="_blank"
+               data-saved-name="marksheet_{{ $key }}" style="color:var(--primary)"></a>
+            <button type="button" class="edu-up__saved-remove"
+                    data-remove-saved="marksheet_{{ $key }}" aria-label="Remove saved file">&times;</button>
+        </div>
+
+        {{-- Flag: set to 1 when the saved file is removed --}}
+        <input type="hidden" name="education[{{ $key }}][marksheet_removed]" value="0"
+               data-removed-flag="marksheet_{{ $key }}">
+    </div>
+    <p class="f-error" data-error-for="education[{{ $key }}][marksheet]"></p>
+</div>
             </div>
         @endforeach
     </div>
