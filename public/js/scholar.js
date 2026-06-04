@@ -38,6 +38,16 @@
         "declaration",
     ];
 
+    // Cascade fields are handled ONLY by hydrateCascade(); the generic scalar
+    // loop in applyDraft() must skip them so it can't assign a value to a
+    // <select> whose <option> hasn't been built yet.
+    var CASCADE_KEYS = [
+        "school",
+        "discipline",
+        "specialization",
+        "specialization_other",
+    ];
+
     /* ══════════════════════════════════════════════════════════════════
        BOOT
     ══════════════════════════════════════════════════════════════════ */
@@ -133,7 +143,6 @@
        ENCLOSURES SYNC
     ══════════════════════════════════════════════════════════════════ */
     function loadSavedFiles() {
-        // try the inline JSON script first
         var el = document.getElementById("saved-files-data");
         if (el) {
             try {
@@ -146,7 +155,6 @@
                 );
             }
         }
-        // fallback: a global draft object, if present
         if (window.__DRAFT__ && window.__DRAFT__.files) {
             return window.__DRAFT__.files;
         }
@@ -162,38 +170,20 @@
         var savedFiles = loadSavedFiles();
         var savedKeys = Object.keys(savedFiles);
 
-        // Debug: see what's available vs. what's being looked up.
-        console.log("[enclosures] saved file keys:", savedKeys);
-        console.log(
-            "[enclosures] sources on page:",
-            items.map(function (li) {
-                return li.getAttribute("data-encl-source");
-            }),
-        );
-
         function entryHasUrl(entry) {
             if (!entry) return false;
-            // accept { url }, { path }, or a plain truthy string
             if (typeof entry === "string") return entry.length > 0;
             return !!(entry.url || entry.path || entry.file_path);
         }
 
         function hasSaved(name) {
             if (!name) return false;
-
-            // 1) exact match
             if (entryHasUrl(savedFiles[name])) return true;
-
-            // 2) name + "_certificate" (eligibility -> eligibility_certificate)
             if (entryHasUrl(savedFiles[name + "_certificate"])) return true;
-
-            // 3) name without "_certificate"
             if (name.indexOf("_certificate") !== -1) {
                 var base = name.replace("_certificate", "");
                 if (entryHasUrl(savedFiles[base])) return true;
             }
-
-            // 4) any saved key that starts with the source name
             for (var i = 0; i < savedKeys.length; i++) {
                 var k = savedKeys[i];
                 if (
@@ -249,6 +239,11 @@
             schools = JSON.parse(dataEl.textContent);
         } catch (e) {
             schools = [];
+        }
+        if (!schools || !schools.length) {
+            console.warn(
+                "[cascade] #annexure-data is empty — school/discipline/specialization dropdowns will have no options, so saved values cannot be reselected. Populate annexureData() in the controller.",
+            );
         }
 
         var schoolSel = form.querySelector('[data-cascade="school"]');
@@ -911,7 +906,6 @@
         }
 
         // Expose so hydrate can jump to the right step.
-        // Wrap show() so we know whether hydration has driven the first paint.
         form._hydrated = false;
         form._wizardShow = function (i) {
             form._hydrated = true;
@@ -924,7 +918,6 @@
             paymentDone = paymentStatus === "paid";
         };
 
-        // Allow applyDraft to refresh the tab states without changing step
         form._refreshTabs = function () {
             show(current);
         };
@@ -935,13 +928,11 @@
 
             var stepId = steps[current].getAttribute("data-step-id");
 
-            // ── Non-data steps (e.g. future custom steps) ──
             if (STEP_DATA.indexOf(stepId) === -1) {
                 show(Math.min(current + 1, steps.length - 1));
                 return;
             }
 
-            // ── Normal data step: save then advance ──
             var label = nextBtn.textContent;
             nextBtn.disabled = true;
             nextBtn.textContent = "Saving…";
@@ -952,7 +943,6 @@
                 function (res) {
                     nextBtn.disabled = false;
                     nextBtn.textContent = label;
-                    // Keep local completedSteps in sync with server
                     if (res && res.completed_steps) {
                         completedSteps = res.completed_steps;
                     } else if (completedSteps.indexOf(stepId) === -1) {
@@ -978,7 +968,6 @@
                 var targetId = steps[k]
                     ? steps[k].getAttribute("data-step-id")
                     : "";
-                // Preview is reachable once declaration is completed.
                 if (
                     targetId === "preview" &&
                     completedSteps.indexOf("declaration") === -1
@@ -1017,13 +1006,11 @@
                 "POST",
                 function (res) {
                     if (res && res.success) {
-                        console.log("test0");
                         showToast(res.message, "success", 2000);
                         setTimeout(function () {
                             window.location.href = res.redirect;
                         }, 600);
                     } else {
-                        console.log("test00");
                         toast(
                             (res && res.message) || "Could not submit.",
                             "error",
@@ -1033,7 +1020,6 @@
                     }
                 },
                 function (err) {
-                    console.log("test000");
                     showServerErr(err);
                     submitBtn.disabled = false;
                     submitBtn.textContent = "Submit Application";
@@ -1041,9 +1027,8 @@
             );
         });
 
-        // Fallback: hydrateDraft normally drives the first paint and sets the
-        // correct active tab. If hydrate never fires (e.g. network error),
-        // fall back to showing step 0 so the form is still usable.
+        // Fallback: if hydrate never drives a first paint (e.g. network error),
+        // show step 0 so the form is still usable.
         setTimeout(function () {
             if (!form._hydrated) show(0);
         }, 1500);
@@ -1055,7 +1040,6 @@
     function saveStep(form, stepId, onOk, onFail) {
         var fd = collectStep(form, stepId);
 
-        // Build URL and verify the placeholder was actually replaced
         var stepUrl = window.AppRoutes.step.replace(":step", stepId);
 
         if (
@@ -1173,7 +1157,6 @@
         var ok = true,
             firstBad = null;
 
-        // Radio groups
         stepEl.querySelectorAll("[data-validate-radio]").forEach(function (g) {
             if (!isActive(g, stepEl)) return;
             var name = g.getAttribute("data-validate-radio");
@@ -1185,7 +1168,6 @@
             }
         });
 
-        // Checkbox groups
         stepEl
             .querySelectorAll("[data-validate-checkbox]")
             .forEach(function (g) {
@@ -1211,7 +1193,6 @@
                 }
             });
 
-        // Language skills
         var langTable = stepEl.querySelector('[data-repeat="languages"]');
         if (langTable) {
             var langBad = false;
@@ -1241,7 +1222,6 @@
             }
         }
 
-        // Individual fields
         stepEl
             .querySelectorAll("input, select, textarea")
             .forEach(function (f) {
@@ -1306,42 +1286,60 @@
     ══════════════════════════════════════════════════════════════════ */
     function hydrateDraft(form) {
         var draftUrl = window.AppRoutes.draft;
-        if (window.jQuery) {
-            $.ajax({
-                url: draftUrl,
-                method: "GET",
-                headers: {
-                    "X-Requested-With": "XMLHttpRequest",
-                    Accept: "application/json",
-                },
-                success: function (res) {
-                    applyDraft(form, res);
-                },
-                error: function () {
-                    /* silent — fresh form */
-                },
-            });
-        } else {
-            fetch(draftUrl, {
-                credentials: "same-origin",
-                headers: {
-                    "X-Requested-With": "XMLHttpRequest",
-                    Accept: "application/json",
-                },
-            })
-                .then(function (r) {
-                    return r.json();
-                })
-                .then(function (res) {
-                    applyDraft(form, res);
-                })
-                .catch(function () {});
+
+        function done(res) {
+            applyDraft(form, res);
         }
+
+        function failed(status, body) {
+            // Surface the reason instead of silently dropping to step 0.
+            console.error(
+                "[hydrate] draft request failed. status:",
+                status,
+                body,
+            );
+            if (status === 401 || status === 419) {
+                toast(
+                    "Your session has expired on this device. Please log in again to resume your application.",
+                    "error",
+                );
+            }
+            if (form._wizardShow) form._wizardShow(0);
+        }
+
+        fetch(draftUrl, {
+            method: "GET",
+            credentials: "same-origin", // send the session cookie (key for other devices)
+            headers: {
+                "X-Requested-With": "XMLHttpRequest",
+                Accept: "application/json",
+            },
+        })
+            .then(function (r) {
+                return r
+                    .json()
+                    .catch(function () {
+                        return null;
+                    })
+                    .then(function (body) {
+                        if (!r.ok) {
+                            failed(r.status, body);
+                            return null;
+                        }
+                        return body;
+                    });
+            })
+            .then(function (res) {
+                if (res) done(res);
+            })
+            .catch(function (err) {
+                failed("network", err && err.message);
+            });
     }
 
     function applyDraft(form, res) {
         if (!res || !res.success) {
-            // No draft / failed → still need a first paint.
+            if (res && res.message) toast(res.message, "error");
             if (form._wizardShow) form._wizardShow(0);
             return;
         }
@@ -1358,26 +1356,26 @@
         if (res.draft) {
             var d = res.draft;
 
-            // Flat scalar fields
+            // Generic scalar loop — skip structured AND cascade keys.
+            var SKIP = [
+                "languages",
+                "education",
+                "service",
+                "projects",
+                "career_aspirations",
+                "courses",
+                "enclosures",
+                "files",
+            ].concat(CASCADE_KEYS);
+
             Object.keys(d).forEach(function (key) {
-                if (
-                    [
-                        "languages",
-                        "education",
-                        "service",
-                        "projects",
-                        "career_aspirations",
-                        "courses",
-                        "enclosures",
-                        "files",
-                    ].indexOf(key) !== -1
-                )
-                    return;
+                if (SKIP.indexOf(key) !== -1) return;
                 setField(form, key, d[key]);
             });
 
-            // Structured / repeatable fields
+            // Cascade FIRST among structured hydrators (waits for options).
             hydrateCascade(form, d);
+
             hydrateLanguages(form, d.languages || []);
             hydrateEducation(form, d.education || {});
             hydrateService(form, d.service || []);
@@ -1391,9 +1389,16 @@
             hydrateEnclosures(form, d.enclosures || {});
             hydrateFiles(form, d.files || {});
 
-            // Fire change events so reveals / age calc / etc. update
+            // Nudge non-cascade controls so reveals / age calc update — but
+            // DON'T re-dispatch on cascade selects (would wipe their values).
             form.querySelectorAll("input, select, textarea").forEach(
                 function (el) {
+                    if (
+                        el.matches('[data-cascade="school"]') ||
+                        el.matches('[data-cascade="discipline"]') ||
+                        el.matches('[data-cascade="specialization"]')
+                    )
+                        return;
                     el.dispatchEvent(new Event("change", { bubbles: true }));
                 },
             );
@@ -1403,17 +1408,16 @@
         var idx = 0;
         if (res.current_step) {
             idx = STEP_IDS.indexOf(res.current_step);
-            // current_step may be "payment" (not in STEP_IDS) → treat as preview
             if (idx === -1 && res.current_step === "payment") {
                 idx = STEP_IDS.indexOf("preview");
             }
             if (idx < 0) idx = 0;
         }
         if (form._wizardShow) {
-            // Small delay lets cascade/repeatable change events settle first.
+            // Let cascade/repeatable change events settle first.
             setTimeout(function () {
                 form._wizardShow(idx);
-            }, 150);
+            }, 200);
         }
 
         // ── 4. Payment success toast (when redirected back from gateway) ──
@@ -1424,7 +1428,6 @@
                     "Payment confirmed! Please review and submit your application.",
                     "success",
                 );
-                // Clean URL without reloading
                 if (window.history && window.history.replaceState) {
                     window.history.replaceState(
                         {},
@@ -1440,16 +1443,17 @@
     function setField(form, name, value) {
         if (value === null || value === undefined) return;
         var els = form.querySelectorAll('[name="' + cssEsc(name) + '"]');
-       if (!els.length) {
-           console.warn("[hydrate] no field for:", name, "=", value); // ← add this
-           return;
-       }
+        if (!els.length) return;
+
         var first = els[0];
+
         if (first.type === "radio") {
             els.forEach(function (r) {
                 r.checked =
                     r.value === String(value) ||
-                    (value === true && r.value === "1");
+                    (value === true &&
+                        (r.value === "1" || r.value === "Yes")) ||
+                    (value === false && (r.value === "0" || r.value === "No"));
             });
         } else if (first.type === "checkbox") {
             first.checked =
@@ -1458,7 +1462,13 @@
                 value === "1" ||
                 value === "Yes";
         } else if (first.tagName === "SELECT") {
-            first.value = value;
+            // Only assign if the option exists — otherwise the browser silently
+            // keeps the old value and the assignment looks like it "worked".
+            var ok = Array.prototype.some.call(first.options, function (o) {
+                return o.value === String(value);
+            });
+            if (ok) first.value = String(value);
+            first.dispatchEvent(new Event("change", { bubbles: true }));
         } else if (first.type !== "file") {
             first.value = value;
         }
@@ -1469,20 +1479,61 @@
         var disc = form.querySelector('[data-cascade="discipline"]');
         var spec = form.querySelector('[data-cascade="specialization"]');
         if (!school) return;
-        if (d.school) {
-            school.value = d.school;
-            school.dispatchEvent(new Event("change", { bubbles: true }));
+
+        var OTHER = "Other (please specify)";
+
+        function hasOption(sel, value) {
+            return (
+                sel &&
+                Array.prototype.some.call(sel.options, function (o) {
+                    return o.value === String(value);
+                })
+            );
         }
-        if (disc && d.discipline) {
-            disc.value = d.discipline;
-            disc.dispatchEvent(new Event("change", { bubbles: true }));
+
+        function setSelectValue(sel, value) {
+            if (!sel || value == null || value === "") return false;
+            if (hasOption(sel, value)) {
+                sel.value = String(value);
+                sel.dispatchEvent(new Event("change", { bubbles: true }));
+                return true;
+            }
+            return false;
         }
-        if (spec && d.specialization) {
-            spec.value = d.specialization;
-            spec.dispatchEvent(new Event("change", { bubbles: true }));
+
+        // 1. School → its change handler fills the discipline dropdown.
+        if (d.school && !setSelectValue(school, d.school)) {
+            console.warn(
+                "[cascade] saved school not found in options:",
+                d.school,
+            );
         }
-        if (d.specialization_other)
-            setField(form, "specialization_other", d.specialization_other);
+
+        // 2. Discipline — options now exist (filled synchronously above).
+        if (d.discipline) {
+            if (!setSelectValue(disc, d.discipline)) {
+                setTimeout(function () {
+                    setSelectValue(disc, d.discipline);
+                }, 0);
+            }
+        }
+
+        // 3. Specialization (or the OTHER free-text path), deferred a tick.
+        setTimeout(function () {
+            if (d.specialization && setSelectValue(spec, d.specialization)) {
+                // matched a real option
+            } else if (d.specialization_other) {
+                if (hasOption(spec, OTHER)) {
+                    spec.value = OTHER;
+                    spec.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+                setField(form, "specialization_other", d.specialization_other);
+            } else if (d.specialization) {
+                setTimeout(function () {
+                    setSelectValue(spec, d.specialization);
+                }, 0);
+            }
+        }, 0);
     }
 
     function clickAdd(container, times) {
@@ -1603,17 +1654,16 @@
             // ── Show the saved-file preview box if it exists ──
             var previewBox = document.getElementById("saved-" + docType);
             if (previewBox) {
-                // Set file name
                 var nameEl = previewBox.querySelector(
                     '[data-saved-name="' + docType + '"]',
                 );
                 if (nameEl) nameEl.textContent = file.name;
 
-                // Set link href
                 var linkEl = previewBox.querySelector(
                     '[data-saved-url="' + docType + '"]',
                 );
                 if (linkEl) linkEl.href = file.url;
+
                 var thumbEl = previewBox.querySelector(
                     '[data-saved-thumb="' + docType + '"]',
                 );
@@ -1624,17 +1674,34 @@
                 previewBox.hidden = false;
             }
 
-            // ── Also inject a hint below the file input (fallback) ──
+            // ── Locate the matching file input ──
             var inp = form.querySelector(
                 'input[type="file"][name="' + cssEsc(docType) + '"]',
             );
             if (!inp) return;
 
+            // ── A saved file already exists → upload is no longer mandatory ──
+            inp.required = false;
+            inp.removeAttribute("required");
+            inp.removeAttribute("data-required");
+
             var group =
                 inp.closest(".js-upload, [data-edu-upload], .f-group") ||
                 inp.parentElement;
 
-            // Remove old hint if re-hydrating
+            // Clear any validation error already shown on the group
+            if (group) {
+                group.classList.remove("is-invalid");
+                var ge = group.querySelector(".f-error");
+                if (ge) {
+                    ge.textContent = "";
+                    ge.classList.remove("show");
+                }
+            }
+
+            // ── Inject a hint below the file input (fallback) ──
+            if (!group) return;
+
             var oldHint = group.querySelector("[data-saved-file]");
             if (oldHint) oldHint.remove();
 
@@ -1650,7 +1717,6 @@
                 "</a> " +
                 '<span style="opacity:.6">(re-upload to replace)</span>';
 
-            // Insert before the input or at end of group
             var zone = group.querySelector("[data-zone]");
             if (zone) {
                 group.insertBefore(hint, zone);
@@ -1659,7 +1725,6 @@
             }
         });
     }
-    const draft = window.__APP_DRAFT__ || {};
 
     /* ══════════════════════════════════════════════════════════════════
        PREVIEW
@@ -1735,7 +1800,6 @@
 
         var html = "";
 
-        // Photo
         var photo = form.querySelector('input[type="file"][name="photo"]');
         if (photo && photo.files && photo.files[0]) {
             html +=
@@ -1744,7 +1808,6 @@
                 '" alt="Applicant photo">';
         }
 
-        // Programme
         var spec = val("specialization");
         if (spec === "Other (please specify)")
             spec = val("specialization_other");
@@ -1758,7 +1821,6 @@
             ]),
         );
 
-        // Personal
         var gender = radioLabel("gender");
         if (val("single_girl_child") === "Yes")
             gender += " · Single Girl Child";
@@ -1783,10 +1845,8 @@
             ]),
         );
 
-        // Education
         html += section("Educational Qualification", eduTable(form));
 
-        // Eligibility
         var eligItems = [
             item(
                 "Qualified in National/State exam",
@@ -1813,7 +1873,6 @@
                 ]),
         );
 
-        // Experience
         var svc = serviceTable(form);
         html += section(
             "Academic, Research & Industry Service",
@@ -1826,7 +1885,6 @@
                 "</strong> months</p>",
         );
 
-        // Research
         html += section(
             "Projects, Courses & Aspirations",
             projectsTable(form) +
@@ -1846,7 +1904,6 @@
                 ]),
         );
 
-        // Enclosures
         html += section(
             "Enclosures",
             enclosuresList(form) +
@@ -1868,7 +1925,6 @@
                 ]),
         );
 
-        // Declaration
         html += section(
             "Declaration",
             grid([
@@ -2097,7 +2153,6 @@
             window.rguToast(message, type);
             return;
         }
-        // fallback
         console.warn("[scholar]", type, message);
     }
 
@@ -2125,7 +2180,9 @@
             .replace(/'/g, "&#39;");
     }
 
-    // ── Pay Now (preview step) → initiatePayment → Cashfree redirect ─────────
+    /* ══════════════════════════════════════════════════════════════════
+       PAY NOW (preview step) → initiatePayment → Cashfree redirect
+    ══════════════════════════════════════════════════════════════════ */
     function initPayNow(form) {
         var btn = document.querySelector("[data-pay-now]");
         if (!btn) return;
@@ -2152,6 +2209,7 @@
 
             fetch(INITIATE_URL, {
                 method: "POST",
+                credentials: "same-origin",
                 headers: {
                     "X-CSRF-TOKEN": csrf(),
                     Accept: "application/json",

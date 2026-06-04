@@ -15,7 +15,7 @@
                     data-cascade="school">
                     <option value="" disabled selected>— Select a School —</option>
                     @foreach ($data['schools'] as $i => $school)
-                        <option value="{{ $school['name'] }}" @if ($application['school'] == $school['name']) selected @endif>
+                        <option value="{{ $school['name'] }}">
                             {{ $i + 1 }}. {{ $school['name'] }}</option>
                     @endforeach
                 </select>
@@ -54,13 +54,16 @@
             </div>
         </div>
 
-        {{-- Passport photo --}}
         <div class="photo-col">
-            <x-upload name="photo" label="Passport Size Photograph" :image="true" required
+            @php
+                $hasSavedPhoto = !empty($draft['files']['photo']['url'] ?? null);
+            @endphp
+
+            <x-upload name="photo" label="Passport Size Photograph" :image="true" :required="!$hasSavedPhoto"
                 hint="Recent passport photo · JPG/PNG · max 2 MB" />
 
             {{-- Saved preview (populated by hydrateFiles) --}}
-            <div id="saved-photo" hidden class="saved-preview">
+            <div id="saved-photo" {{ $hasSavedPhoto ? '' : 'hidden' }} class="saved-preview">
                 <img data-saved-thumb="photo" hidden alt="Saved photo" style="max-width:120px;border-radius:8px" />
                 <a data-saved-url="photo" target="_blank" data-saved-name="photo" style="color:var(--primary)"></a>
                 <span style="opacity:.6">(re-upload to replace)</span>

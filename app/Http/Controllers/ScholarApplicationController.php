@@ -68,11 +68,11 @@ class ScholarApplicationController extends Controller
     public function create(): View
     {
         $user = Auth::guard('user')->user();
-        $app  = $this->currentDraft();
-        $application = Application::where('id', $user->id)->first();
+        $app  = $this->currentDraft();   // by user_id + status=draft (device-independent)
 
         $draft = [];
         $enclosureStatus = [];
+        $status = '';
 
         if ($app) {
             $app->load(['enclosures', 'documents']);
@@ -84,7 +84,7 @@ class ScholarApplicationController extends Controller
                 'specialization_other' => $app->specialization_other,
                 'programme_mode'       => $app->programme_mode,
                 'enclosures_confirm'   => (bool) $app->enclosures_confirm,
-                'payment_status'  =>  $app->payment_status ?? 'payment_pending',
+                'payment_status'       => $app->payment_status ?? 'payment_pending',
                 'enclosures' => $app->enclosures
                     ->mapWithKeys(fn($e) => [$e->enclosure_key => (bool) $e->checked])
                     ->all(),
@@ -96,15 +96,16 @@ class ScholarApplicationController extends Controller
                     ->all(),
             ];
 
+            $status          = $app->status ?? '';
             $enclosureStatus = $this->buildEnclosureStatus($app);
         }
 
         return view('scholar.application', [
-            'data'             => config('scholar'),
-            'user'             => $user,
-            'draft'            => $draft,
-            'status' =>  $application->status ?? '',
-            'enclosureStatus'  => $enclosureStatus,
+            'data'            => config('scholar'),
+            'user'            => $user,
+            'draft'           => $draft,
+            'status'          => $status,
+            'enclosureStatus' => $enclosureStatus,
         ]);
     }
 
@@ -181,10 +182,25 @@ class ScholarApplicationController extends Controller
 
     public function draft(Request $request)
     {
+        // Explicit auth check that returns JSON (so the front-end can react),
+        // instead of relying on abort_unless() inside currentDraft() which
+        // produces an HTML/redirect response the AJAX call cannot read.
         $user = Auth::guard('user')->user();
-        $app  = $this->currentDraft();
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'reason'  => 'unauthenticated',
+                'message' => 'Your session has expired. Please log in again.',
+            ], 401);
+        }
+
+        $app = Application::where('user_id', $user->id)
+            ->where('status', 'draft')
+            ->latest('id')
+            ->first();
 
         if (!$app) {
+            // No saved draft for THIS user → prefill from the user record.
             return response()->json([
                 'success' => true,
                 'draft'   => [
@@ -193,8 +209,8 @@ class ScholarApplicationController extends Controller
                     'mobile'      => $user->mobile ?? $user->phone ?? '',
                     'nationality' => 'Indian',
                 ],
-                'current_step'   => 'programme',
-                'payment_status' => 'unpaid',
+                'current_step'    => 'programme',
+                'payment_status'  => 'unpaid',
                 'completed_steps' => [],
             ]);
         }
@@ -204,8 +220,8 @@ class ScholarApplicationController extends Controller
             ? $app->declaration
             : (json_decode($app->declaration, true) ?: []);
         $payload = [
-            'school'               => $app->school,        // <-- now returned for rehydration
-            'discipline'           => $app->discipline,    // <-- now returned for rehydration
+            'school'               => $app->school,
+            'discipline'           => $app->discipline,
             'specialization'       => $app->specialization,
             'specialization_other' => $app->specialization_other,
             'programme_mode'       => $app->programme_mode,
@@ -326,13 +342,6 @@ class ScholarApplicationController extends Controller
     }
 
 
-    /* ───────── 3) initiatePayment(): called by the "Pay Now" button ON the preview page ─────────
- *  Replace your initiatePayment() with this. It no longer re-saves the
- *  declaration step (that already happened). It just creates/reuses the
- *  payment order and returns the redirect URL to Cashfree. */
-
-
-
     /** Final submit after preview */
     public function submit(Request $request)
     {
@@ -419,8 +428,8 @@ class ScholarApplicationController extends Controller
         }
 
         $app->fill([
-            'school'               => $d['school'] ?? $app->school,          // <-- was missing
-            'discipline'           => $d['discipline'] ?? $app->discipline,  // <-- was missing
+            'school'               => $d['school'] ?? $app->school,
+            'discipline'           => $d['discipline'] ?? $app->discipline,
             'specialization'       => $specialization,
             'specialization_other' => $d['specialization_other'] ?? null,
             'programme_mode'       => $this->normMode($d['programme_mode'] ?? $app->programme_mode),
@@ -454,7 +463,17 @@ class ScholarApplicationController extends Controller
         $app->save();
 
         $this->storeFile($app, $r, 'community_certificate', 'community_certificate');
-        $this->storeFile($app, $r, 'disability_certificate', 'disability_certificate');
+        $isAbled = in_array($r->input('differently_abled'), ['Yes', '1', 1, true, 'yes'], true);
+
+if ($isAbled) {
+    $this->storeFile($app, $r, 'disability_certificate', 'disability_certificate');
+} else {
+    $doc = $app->documents()->where('document_type', 'disability_certificate')->first();
+    if ($doc) {
+        Storage::disk('public')->delete($doc->file_path);
+        $doc->delete();
+    }
+}
 
         // languages: replace the set
         $app->languages()->delete();
@@ -566,7 +585,7 @@ class ScholarApplicationController extends Controller
         // Store any newly uploaded enclosure files (field name == document_type).
         $this->storeFile($app, $r, 'noc_document', 'noc_document');
         $this->storeFile($app, $r, 'service_certificate', 'service_certificate');
-        $this->storeFile($app, $r, 'equivalence_cert', 'equivalence_cert');
+        $this->storeFile($app, $r, 'equivalence_certificate', 'equivalence_certificate');
 
         $existingTypes = $app->documents()->pluck('document_type')->all();
         $posted        = (array) $r->input('enclosures', []);
