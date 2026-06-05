@@ -22,15 +22,15 @@
 return [
 
     'programme_modes' => [
-        'FT'         => 'Full-Time (FT)',
-        'FT-Startup' => 'Full-Time (Start-up)',
-        'PT'         => 'Part-Time (PT)',
-        'Integrated' => 'Integrated',
+        'FT'         => 'Full Time',
+        'FT-Startup' => 'Startup Based Ph.D',
+        'PT'         => 'Part Time',
+        'Integrated' => 'Integrated PG + Ph.D',
     ],
 
     'genders' => ['Male', 'Female', 'Transgender'],
 
-    'language_skills' => ['R' => 'Read', 'W' => 'Write', 'S' => 'Speak'],
+    'language_skills' => ['R' => 'Read', 'W' => 'Write', 'S' => 'Speak', 'U' => 'Understand'],
 
     'communities' => ['OC', 'EWS', 'BC', 'BCM', 'MBC', 'DNC', 'SC', 'SCA', 'ST'],
 
@@ -62,19 +62,20 @@ return [
         'Consultancy', 'Teaching', 'Any other',
     ],
 
-    // List of Enclosures checklist. `pt_only` items appear only when the
-    // applicant selects the Part-Time programme mode.
+    // List of Enclosures checklist. Each item auto-ticks from the upload named
+    // in `source` (done earlier in the form); `source => null` means manual.
+    // `pt_only` items appear only for the Part-Time programme mode.
     'enclosures' => [
-        ['key' => 'sslc_marksheet',     'label' => 'Self-Attested copy of SSLC Mark Sheet',                                            'pt_only' => false],
-        ['key' => 'plus2_marksheet',    'label' => 'Self-Attested copy of +2 Mark Sheet',                                              'pt_only' => false],
-        ['key' => 'ug_degree',          'label' => 'Self-Attested copy of UG Degree (or) Provisional Certificate',                     'pt_only' => false],
-        ['key' => 'pg_marksheets',      'label' => 'Self-Attested copy of PG Mark Sheets / Consolidated mark sheet',                   'pt_only' => false],
-        ['key' => 'pg_degree',          'label' => 'Self-Attested copy of PG Degree (or) Provisional Certificate',                     'pt_only' => false],
-        ['key' => 'mphil_degree',       'label' => 'Self-Attested copy of M.Phil. Degree (or) Provisional Certificate',               'pt_only' => false],
-        ['key' => 'community_cert',     'label' => 'Self-Attested copy of Community Certificate (OC/EWS/BC/BCM/MBC/DNC/SC/SCA/ST)',    'pt_only' => false],
-        ['key' => 'noc',                'label' => 'No Objection Certificate (NOC) from employer / head of institution',              'pt_only' => true],
-        ['key' => 'service_cert',       'label' => 'Service Certificate from employer / head of institution',                          'pt_only' => true],
-        ['key' => 'equivalence_cert',   'label' => 'Equivalence Certificate in case of foreign degree (produce at admission)',         'pt_only' => false],
+        ['key' => 'marksheet_sslc',     'label' => 'Self-Attested copy of SSLC Mark Sheet',                                            'pt_only' => false, 'source' => 'education[sslc][marksheet]'],
+        ['key' => 'marksheet_hsc',    'label' => 'Self-Attested copy of +2 Mark Sheet',                                              'pt_only' => false, 'source' => 'education[hsc][marksheet]'],
+        ['key' => 'marksheet_bachelor',          'label' => 'Self-Attested copy of UG Degree (or) Provisional Certificate',                     'pt_only' => false, 'source' => 'education[bachelor][marksheet]'],
+        ['key' => 'marksheet_master',      'label' => 'Self-Attested copy of PG Mark Sheets / Consolidated mark sheet',                   'pt_only' => false, 'source' => 'education[master][marksheet]'],
+        ['key' => 'marksheet_master',          'label' => 'Self-Attested copy of PG Degree (or) Provisional Certificate',                     'pt_only' => false, 'source' => 'education[master][marksheet]'],
+        ['key' => 'marksheet_mphil',       'label' => 'Self-Attested copy of M.Phil. Degree (or) Provisional Certificate',               'pt_only' => false, 'source' => 'education[mphil][marksheet]'],
+        ['key' => 'community_certificate',  'label' => 'Self-Attested copy of Community Certificate (OC/EWS/BC/BCM/MBC/DNC/SC/SCA/ST)',    'pt_only' => false, 'source' => 'community_cert'],
+        ['key' => 'noc',                'label' => 'No Objection Certificate (NOC) from employer / head of institution',              'pt_only' => true,  'source' => 'noc_document'],
+        ['key' => 'service_cert',       'label' => 'Service Certificate from employer / head of institution',                          'pt_only' => true,  'source' => 'service_certificate'],
+        ['key' => 'equivalence_cert',   'label' => 'Equivalence Certificate in case of foreign degree (produce at admission)',         'pt_only' => false, 'source' => null],
     ],
 
     // Annexure-1 — School / Discipline / Specialization

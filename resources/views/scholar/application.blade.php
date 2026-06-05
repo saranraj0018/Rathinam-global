@@ -57,13 +57,11 @@
                     <span data-step-name>{{ $steps[0]['label'] }}</span>
                 </p>
             </div>
-
+ 
             {{-- ── The form ────────────────────────────────────────── --}}
-            <form id="scholar-form" action="{{ route('scholar.store') }}" method="POST"
-                  enctype="multipart/form-data" novalidate>
+            <form id="scholar-form" action="{{ route('scholar.submit') }}" method="POST" enctype="multipart/form-data" novalidate>
                 @csrf
-
-                @include('scholar.steps.programme')
+                @include('scholar.steps.programme', ['application' => $draft])
                 @include('scholar.steps.personal')
                 @include('scholar.steps.education')
                 @include('scholar.steps.eligibility')
@@ -71,7 +69,7 @@
                 @include('scholar.steps.research')
                 @include('scholar.steps.enclosures')
                 @include('scholar.steps.declaration')
-                @include('scholar.steps.preview')
+                @include('scholar.steps.preview', ['payment_status' => $draft['payment_status'] ?? 'payment_pending',])
 
                 {{-- ── Wizard navigation ───────────────────────────── --}}
                 <div class="wizard-nav">
@@ -82,9 +80,11 @@
                     <button type="button" class="btn btn-primary" data-next>
                         Save &amp; Continue →
                     </button>
+                    @if ($status != 'submitted')
                     <button type="submit" class="btn btn-submit" data-submit hidden>
                         Submit Application
                     </button>
+                    @endif
                 </div>
             </form>
         </div>
