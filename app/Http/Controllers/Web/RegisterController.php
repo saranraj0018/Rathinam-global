@@ -42,28 +42,23 @@ class RegisterController extends Controller
         // Do NOT redirect yet — tell the front-end to show the declaration popup
         return response()->json([
             'success'      => true,
+            'message'      => 'Login successful',
             'showDeclaration' => true,
         ]);
     }
 
     public function confirmDeclaration(Request $request)
     {
-        if (!Auth::guard('user')->check()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Session expired. Please login again.',
-            ], 401);
-        }
+        $request->validate(['agreed' => 'required|in:1']);
+        $user = Auth::guard('user')->user();
 
-        $request->validate([
-            'agreed' => 'accepted',
+        $updateDeclaration = User::where('id', $user->id)->update([
+            'declaration_agreed_at' => now(),
         ]);
-
-        session()->put('declaration_accepted', true);
 
         return response()->json([
             'success'  => true,
-            'message'  => 'Declaration accepted',
+            'message'  => 'Declaration confirmed. Welcome!',
             'redirect' => route('scholar.create'),
         ]);
     }
@@ -104,6 +99,10 @@ class RegisterController extends Controller
 
     public function userLogout(Request $request)
     {
+        $user = Auth::guard('user')->user();
+        $updateDeclaration = User::where('id', $user->id)->update([
+            'declaration_agreed_at' => null,
+        ]);
         Auth::guard('user')->logout();
         $request->session()->forget('user');
         $request->session()->invalidate();
