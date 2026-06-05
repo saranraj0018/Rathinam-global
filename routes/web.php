@@ -17,6 +17,7 @@ require __DIR__ . '/admin.php';
 
 // Auth UI only — backend team to wire the POST handlers.
 Route::view('/login', 'auth.login')->name('auth.login');
+Route::post('declaration/confirm', [RegisterController::class, 'confirmDeclaration'])->name('auth.declaration.confirm');
 Route::view('/register', 'auth.register')->name('auth.register');
 Route::post('/register', [RegisterController::class, 'userRegisterUpdate'])->name('auth.register.store');
 Route::post('/login', [RegisterController::class, 'userAuthenticate'])->name('auth.login.store');
@@ -29,7 +30,7 @@ Route::middleware(['auth:user'])->group(function () {
     Route::post('/apply/initiate-payment',  [PaymentController::class, 'initiatePayment'])->name('scholar.payment.initiate');
     Route::get('/payment/application/{payment_id}', [PaymentController::class, 'paymentApplication'])
     ->name('payment.application');
-       Route::get('/payment/success/{payment_id}', [PaymentController::class, 'paymentSuccess'])
+    Route::get('/payment/success/{payment_id}', [PaymentController::class, 'paymentSuccess'])
     ->name('payment.success');
     Route::post('/apply/submit',            [ScholarApplicationController::class, 'submit'])->name('scholar.submit');
     Route::get('/apply/thankyou',           [ScholarApplicationController::class, 'thankyou'])->name('scholar.thankyou');

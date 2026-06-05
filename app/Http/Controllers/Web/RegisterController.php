@@ -38,9 +38,32 @@ class RegisterController extends Controller
 
         $user = Auth::guard('user')->user();
         session()->put('user', $user);
+
+        // Do NOT redirect yet — tell the front-end to show the declaration popup
+        return response()->json([
+            'success'      => true,
+            'showDeclaration' => true,
+        ]);
+    }
+
+    public function confirmDeclaration(Request $request)
+    {
+        if (!Auth::guard('user')->check()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Session expired. Please login again.',
+            ], 401);
+        }
+
+        $request->validate([
+            'agreed' => 'accepted',
+        ]);
+
+        session()->put('declaration_accepted', true);
+
         return response()->json([
             'success'  => true,
-            'message'  => 'Login successful',
+            'message'  => 'Declaration accepted',
             'redirect' => route('scholar.create'),
         ]);
     }
