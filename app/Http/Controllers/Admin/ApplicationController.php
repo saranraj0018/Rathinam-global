@@ -12,23 +12,27 @@ use ZipArchive;
 
 class ApplicationController extends Controller
 {
-    /** List with search, status filter, sorting, and pagination. */
     public function index(Request $request)
     {
         $sortable = ['application_no', 'full_name', 'programme_mode', 'status'];
         $sort = in_array($request->get('sort'), $sortable) ? $request->get('sort') : 'created_at';
         $dir  = $request->get('dir') === 'asc' ? 'asc' : 'desc';
 
-        $applications = Application::query()
-            ->withCount('documents')
-            ->when($request->filled('q'), function ($query) use ($request) {
+        // Reusable search scope — define once, apply twice
+        $search = function ($query) use ($request) {
+            if ($request->filled('q')) {
                 $q = $request->get('q');
                 $query->where(function ($w) use ($q) {
                     $w->where('full_name', 'like', "%{$q}%")
                         ->orWhere('application_no', 'like', "%{$q}%")
                         ->orWhere('email', 'like', "%{$q}%");
                 });
-            })
+            }
+        };
+
+        $applications = Application::query()
+            ->withCount('documents')
+            ->tap($search)
             ->when(
                 $request->filled('status') && $request->get('status') !== 'all',
                 fn($query) => $query->where('status', $request->get('status'))
@@ -37,20 +41,16 @@ class ApplicationController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        // Status counts for the filter pills
-        $base = Application::query()
-            ->when($request->filled('q'), function ($query) use ($request) {
-                $q = $request->get('q');
-                $query->where(function ($w) use ($q) {
-                    $w->where('full_name', 'like', "%{$q}%")
-                        ->orWhere('application_no', 'like', "%{$q}%")
-                        ->orWhere('email', 'like', "%{$q}%");
-                });
-            });
+        // All status counts in ONE query instead of six
+        $rawCounts = Application::query()
+            ->tap($search)
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
 
-        $counts = ['all' => (clone $base)->count()];
+        $counts = ['all' => $rawCounts->sum()];
         foreach (['draft', 'submitted', 'under_review', 'approved', 'rejected'] as $s) {
-            $counts[$s] = (clone $base)->where('status', $s)->count();
+            $counts[$s] = $rawCounts->get($s, 0);
         }
 
         return view('admin.applications.index', compact('applications', 'counts'));
@@ -132,7 +132,14 @@ class ApplicationController extends Controller
 
         $disk = 'public';
 
-        // Pre-encode image documents as base64 so dompdf can embed them
+        // Logo as base64 — place your file at public/images/logo.png
+        $logoSrc = null;
+        $logoPath = public_path('images/logo.png');
+        if (is_file($logoPath)) {
+            $logoSrc = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
+        }
+
+        // Embed image documents only (jpg/png/gif)
         $images = [];
         foreach ($application->documents as $doc) {
             $ext = strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION));
@@ -148,13 +155,12 @@ class ApplicationController extends Controller
         }
 
         $pdf = Pdf::loadView('admin.applications.pdf', [
-            'app'    => $application,
-            'images' => $images,
-        ])->setPaper('a4');
+            'app'     => $application,
+            'images'  => $images,
+            'logoSrc' => $logoSrc,
+        ])->setPaper('a4')->setOption('isRemoteEnabled', true);
 
-        return $pdf->download($application->application_no . '_documents.pdf');
+        return $pdf->download($application->application_no . '_application.pdf');
+
     }
 }
-
-
-
