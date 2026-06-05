@@ -356,7 +356,7 @@ class ScholarApplicationController extends Controller
         $app->save();
         if (!empty($app->email)) {
             Mail::to($app->email)
-                ->cc('admissions@rgu.ac.in')   // university copy
+                // ->cc('admissions@rgu.ac.in')   // university copy
                 ->send(new ApplicationSubmitted($app));
         }
         return response()->json([
