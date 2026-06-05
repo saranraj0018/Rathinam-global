@@ -23,7 +23,7 @@ Route::post('/register', [RegisterController::class, 'userRegisterUpdate'])->nam
 Route::post('/login', [RegisterController::class, 'userAuthenticate'])->name('auth.login.store');
 Route::post('/logout', [RegisterController::class, 'userLogout'])->name('auth.logout');
 
-Route::middleware(['auth:user'])->group(function () {
+Route::middleware(['auth:user', 'declaration.agreed'])->group(function () {
     Route::get('/apply',                    [ScholarApplicationController::class, 'create'])->name('scholar.create');
     Route::get('/apply/draft',              [ScholarApplicationController::class, 'draft'])->name('scholar.draft');
     Route::post('/apply/step/{step}',       [ScholarApplicationController::class, 'saveStep'])->name('scholar.step');

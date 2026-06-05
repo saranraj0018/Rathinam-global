@@ -57,7 +57,7 @@
                     <span data-step-name>{{ $steps[0]['label'] }}</span>
                 </p>
             </div>
- 
+
             {{-- ── The form ────────────────────────────────────────── --}}
             <form id="scholar-form" action="{{ route('scholar.submit') }}" method="POST" enctype="multipart/form-data" novalidate>
                 @csrf
@@ -95,4 +95,56 @@
             (max&nbsp;2&nbsp;MB each).
         </p>
     </div>
+
+    <!-- Acknowledgement Modal -->
+<!-- Acknowledgement Modal -->
+<div id="ackModal"
+     style="position:fixed; inset:0; z-index:1000; display:none;
+            align-items:center; justify-content:center; padding:1rem;
+            background:rgba(0,0,0,.55); backdrop-filter:blur(4px);">
+
+    <!-- Overlay -->
+    <div data-ack-overlay style="position:absolute; inset:0;"></div>
+
+    <!-- Box -->
+    <div style="position:relative; width:100%; max-width:480px;
+                background:#fff; border-radius:16px; padding:2rem;
+                box-shadow:0 20px 50px rgba(0,0,0,.3); text-align:center;">
+
+        <div style="margin:0 auto 1.25rem; width:56px; height:56px;
+                    display:flex; align-items:center; justify-content:center;
+                    border-radius:9999px; background:#dcfce7;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                 stroke="#16a34a" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+        </div>
+
+        <h3 style="font-size:1.25rem; font-weight:600; color:#111827; margin:0;">
+            Congratulations!
+        </h3>
+
+        <p style="margin-top:.75rem; font-size:.875rem; line-height:1.6; color:#4b5563;">
+            You have been successfully registered for the Ph.D. programme at
+            <span style="font-weight:500; color:#1f2937;">Rathinam Global Deemed to be
+            University</span>. A copy of your registered application will be sent
+            to your registered email address shortly.
+        </p>
+
+        <div style="margin-top:1.75rem; display:flex; gap:.75rem; justify-content:center; flex-wrap:wrap;">
+            <button type="button" id="ackCancel"
+                    style="border:1px solid #d1d5db; border-radius:8px;
+                           padding:.625rem 1.25rem; font-size:.875rem;
+                           font-weight:500; color:#374151; background:#fff; cursor:pointer;">
+                Go Back
+            </button>
+            <button type="button" id="ackConfirm"
+                    style="border:none; border-radius:8px; padding:.625rem 1.25rem;
+                           font-size:.875rem; font-weight:500; color:#fff;
+                           background:#4f46e5; cursor:pointer;">
+                Submit Application
+            </button>
+        </div>
+    </div>
+</div>
 @endsection

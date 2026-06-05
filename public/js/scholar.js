@@ -544,34 +544,38 @@
     }
 
     function initEduSavedFiles(form) {
-    // When a saved marksheet exists, enable that row's file input even before
-    // the text fields are (re)validated, and wire up the "remove saved" button.
-    form.querySelectorAll("[data-removed-flag]").forEach(function (flag) {
-        var docType = flag.getAttribute("data-removed-flag");
-        var wrap = flag.closest("[data-edu-upload]");
-        var input = wrap ? wrap.querySelector(".edu-up__input") : null;
+        // When a saved marksheet exists, enable that row's file input even before
+        // the text fields are (re)validated, and wire up the "remove saved" button.
+        form.querySelectorAll("[data-removed-flag]").forEach(function (flag) {
+            var docType = flag.getAttribute("data-removed-flag");
+            var wrap = flag.closest("[data-edu-upload]");
+            var input = wrap ? wrap.querySelector(".edu-up__input") : null;
 
-        var removeBtn = form.querySelector(
-            '[data-remove-saved="' + docType + '"]',
-        );
-        if (!removeBtn) return;
+            var removeBtn = form.querySelector(
+                '[data-remove-saved="' + docType + '"]',
+            );
+            if (!removeBtn) return;
 
-        removeBtn.addEventListener("click", function () {
-            // Mark for server-side deletion
-            flag.value = "1";
+            removeBtn.addEventListener("click", function () {
+                // Mark for server-side deletion
+                flag.value = "1";
 
-            // Hide the saved preview box
-            var box = document.getElementById("saved-" + docType);
-            if (box) box.hidden = true;
+                // Hide the saved preview box
+                var box = document.getElementById("saved-" + docType);
+                if (box) box.hidden = true;
 
-            // Re-impose "required" so the user must re-upload (only if the
-            // row is required — data-required was cleared by hydrateFiles)
-            if (input && wrap && wrap.getAttribute("data-was-required") === "1") {
-                input.setAttribute("data-required", "true");
-            }
+                // Re-impose "required" so the user must re-upload (only if the
+                // row is required — data-required was cleared by hydrateFiles)
+                if (
+                    input &&
+                    wrap &&
+                    wrap.getAttribute("data-was-required") === "1"
+                ) {
+                    input.setAttribute("data-required", "true");
+                }
+            });
         });
-    });
-}
+    }
 
     /* ══════════════════════════════════════════════════════════════════
        REVEALS
@@ -1020,17 +1024,22 @@
             });
 
         /* ── Final submit (preview tab) ── */
-        form.addEventListener("submit", function (e) {
-            e.preventDefault();
+        /* ── Final submit (preview tab) → acknowledgement modal first ── */
+        var ackModal = document.getElementById("ackModal");
+        var ackConfirm = document.getElementById("ackConfirm");
+        var ackCancel = document.getElementById("ackCancel");
+        var ackOverlay = ackModal
+            ? ackModal.querySelector("[data-ack-overlay]")
+            : null;
 
-            if (!paymentDone) {
-                toast("Payment must be completed before submitting.", "error");
-                return;
-            }
+       function openAck() {
+           if (ackModal) ackModal.style.display = "flex";
+       }
+       function closeAck() {
+           if (ackModal) ackModal.style.display = "none";
+       }
 
-            submitBtn.disabled = true;
-            submitBtn.textContent = "Submitting…";
-
+        function doSubmit() {
             sendRequest(
                 form.getAttribute("action"),
                 withToken(new FormData()),
@@ -1042,20 +1051,58 @@
                             window.location.href = res.redirect;
                         }, 600);
                     } else {
+                        closeAck();
                         toast(
                             (res && res.message) || "Could not submit.",
                             "error",
                         );
                         submitBtn.disabled = false;
                         submitBtn.textContent = "Submit Application";
+                        if (ackConfirm) {
+                            ackConfirm.disabled = false;
+                            ackConfirm.textContent = "Submit Application";
+                        }
                     }
                 },
                 function (err) {
+                    closeAck();
                     showServerErr(err);
                     submitBtn.disabled = false;
                     submitBtn.textContent = "Submit Application";
+                    if (ackConfirm) {
+                        ackConfirm.disabled = false;
+                        ackConfirm.textContent = "Submit Application";
+                    }
                 },
             );
+        }
+
+        form.addEventListener("submit", function (e) {
+            e.preventDefault();
+
+            if (!paymentDone) {
+                toast("Payment must be completed before submitting.", "error");
+                return;
+            }
+
+            // Step 1: show the acknowledgement popup instead of submitting now.
+            openAck();
+        });
+
+        if (ackConfirm) {
+            ackConfirm.addEventListener("click", function () {
+                // Step 2: user acknowledged → now actually submit.
+                ackConfirm.disabled = true;
+                ackConfirm.textContent = "Submitting…";
+                submitBtn.disabled = true;
+                submitBtn.textContent = "Submitting…";
+                doSubmit();
+            });
+        }
+        if (ackCancel) ackCancel.addEventListener("click", closeAck);
+        if (ackOverlay) ackOverlay.addEventListener("click", closeAck);
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") closeAck();
         });
 
         // Fallback: if hydrate never drives a first paint (e.g. network error),
@@ -1705,27 +1752,27 @@
                 previewBox.hidden = false;
             }
 
-           // ── Locate the matching file input ──
-        var inp = form.querySelector(
-            'input[type="file"][name="' + cssEsc(docType) + '"]',
-        );
-        if (!inp) return;
+            // ── Locate the matching file input ──
+            var inp = form.querySelector(
+                'input[type="file"][name="' + cssEsc(docType) + '"]',
+            );
+            if (!inp) return;
 
-        if (inp.classList.contains("edu-up__input")) {
-            inp.disabled = false;
-            var euWrap = inp.closest("[data-edu-upload]");
-            if (euWrap) {
-                euWrap.classList.remove("is-locked");
-                // remember it was required so "remove saved" can restore it
-                if (inp.getAttribute("data-required") === "true") {
-                    euWrap.setAttribute("data-was-required", "1");
+            if (inp.classList.contains("edu-up__input")) {
+                inp.disabled = false;
+                var euWrap = inp.closest("[data-edu-upload]");
+                if (euWrap) {
+                    euWrap.classList.remove("is-locked");
+                    // remember it was required so "remove saved" can restore it
+                    if (inp.getAttribute("data-required") === "true") {
+                        euWrap.setAttribute("data-was-required", "1");
+                    }
                 }
             }
-        }
-    
-        inp.required = false;
-        inp.removeAttribute("required");
-        inp.removeAttribute("data-required");   // <-- this clears it, so the block above must run first
+
+            inp.required = false;
+            inp.removeAttribute("required");
+            inp.removeAttribute("data-required"); // <-- this clears it, so the block above must run first
 
             var group =
                 inp.closest(".js-upload, [data-edu-upload], .f-group") ||

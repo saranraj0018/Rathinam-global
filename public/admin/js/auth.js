@@ -1,4 +1,3 @@
-
 $(document).on("submit", "#signupForm", function (e) {
     e.preventDefault();
 
@@ -145,41 +144,37 @@ $(document).on("submit", "#loginForm", function (e) {
 });
 
 function openDeclaration() {
-    // reset state each time it opens
+    // Reset state every time modal opens
     $("#declAgree").prop("checked", false);
-    $("#declConfirmBtn")
-        .prop("disabled", true)
-        .addClass("opacity-50 cursor-not-allowed")
-        .text("Confirm & Continue");
+    $("#declAgreeError").addClass("hidden");
+    $("#declConfirmBtn").prop("disabled", false).text("Confirm & Continue");
 
-    $("#declarationModal").removeClass("hidden").addClass("flex");
+    $("#declarationModal").removeClass("hidden").css("display", "flex");
 }
 
 function closeDeclaration() {
-    $("#declarationModal").addClass("hidden").removeClass("flex");
+    $("#declarationModal").addClass("hidden").css("display", "");
 }
 
-// Enable/disable confirm button with checkbox
-$(document).on("change", "#declAgree", function () {
-    if (this.checked) {
-        $("#declConfirmBtn")
-            .prop("disabled", false)
-            .removeClass("opacity-50 cursor-not-allowed");
-    } else {
-        $("#declConfirmBtn")
-            .prop("disabled", true)
-            .addClass("opacity-50 cursor-not-allowed");
-    }
-});
-
-// Confirm declaration -> then redirect
+// Confirm & Submit
 $(document).on("click", "#declConfirmBtn", function () {
-    if (!$("#declAgree").is(":checked")) return;
+    // Validation — checkbox is required
+    if (!$("#declAgree").is(":checked")) {
+        $("#declAgreeError").removeClass("hidden");
+        $("#declAgree")
+            .closest("label")
+            .addClass("border border-red-300 rounded-lg px-2 py-1 bg-red-50");
+        return;
+    }
+
+    // Hide error if previously shown
+    $("#declAgreeError").addClass("hidden");
+    $("#declAgree")
+        .closest("label")
+        .removeClass("border border-red-300 rounded-lg px-2 py-1 bg-red-50");
 
     let $btn = $(this);
-    $btn.prop("disabled", true)
-        .addClass("opacity-50 cursor-not-allowed")
-        .text("Please wait....");
+    $btn.prop("disabled", true).text("Please wait...");
 
     sendRequest(
         DECLARATION_CONFIRM_URL,
@@ -189,20 +184,28 @@ $(document).on("click", "#declConfirmBtn", function () {
             if (res.success) {
                 showToast(res.message, "success", 1500);
                 setTimeout(() => {
-                    window.location.href = res.redirect;
+                    window.location.href = res.redirect; // ← redirect to application
                 }, 500);
             } else {
                 showToast(res.message, "error", 2000);
-                $btn.prop("disabled", false)
-                    .removeClass("opacity-50 cursor-not-allowed")
-                    .text("Confirm & Continue");
+                $btn.prop("disabled", false).text("Confirm & Continue");
             }
         },
         function (err) {
             showToast(err.message || "Unexpected error", "error", 2000);
-            $btn.prop("disabled", false)
-                .removeClass("opacity-50 cursor-not-allowed")
-                .text("Confirm & Continue");
+            $btn.prop("disabled", false).text("Confirm & Continue");
         },
     );
+});
+
+// Clear error when user checks the checkbox
+$(document).on("change", "#declAgree", function () {
+    if (this.checked) {
+        $("#declAgreeError").addClass("hidden");
+        $(this)
+            .closest("label")
+            .removeClass(
+                "border border-red-300 rounded-lg px-2 py-1 bg-red-50",
+            );
+    }
 });

@@ -28,25 +28,25 @@
             @php $req = in_array($key, $requiredLevels); @endphp
             <div class="edu-row" data-edu-row>
                 <div class="edu-row__label">
-                    {{ $label }} @if ($req)<span class="f-req">*</span>@endif
+                    {{ $label }}
                 </div>
                 <div class="edu-cell" data-cell="Subjects / Specialization">
-                    <input type="text" name="education[{{ $key }}][subjects]" class="f-input f-input--sm edu-field" @if($req) data-required="true" @endif>
+                    <input type="text" name="education[{{ $key }}][subjects]" class="f-input f-input--sm edu-field">
                 </div>
                 <div class="edu-cell" data-cell="Institution / University">
-                    <input type="text" name="education[{{ $key }}][institution]" class="f-input f-input--sm edu-field" @if($req) data-required="true" @endif>
+                    <input type="text" name="education[{{ $key }}][institution]" class="f-input f-input--sm edu-field">
                 </div>
                 <div class="edu-cell" data-cell="Month &amp; Year of Passing">
-                    <input type="month" name="education[{{ $key }}][passing]" class="f-input f-input--sm edu-field" @if($req) data-required="true" @endif>
+                    <input type="month" name="education[{{ $key }}][passing]" class="f-input f-input--sm edu-field">
                 </div>
                 <div class="edu-cell" data-cell="Marks / Class / Rank / Grade">
-                    <input type="text" name="education[{{ $key }}][marks]" class="f-input f-input--sm edu-field" @if($req) data-required="true" @endif>
+                    <input type="text" name="education[{{ $key }}][marks]" class="f-input f-input--sm edu-field">
                 </div>
                 <div class="edu-cell edu-cell--file" data-cell="Mark sheet">
     <div class="edu-up" data-edu-upload>
         <label class="edu-up__label">
             <input type="file" name="education[{{ $key }}][marksheet]" accept=".pdf,.docx,.jpg,.jpeg,.png"
-                   class="sr-only edu-up__input" @if($req) data-required="true" @endif disabled>
+                   class="sr-only edu-up__input">
             <span class="edu-up__btn">⬆ Upload</span>
         </label>
         <span class="edu-up__file" hidden>

@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => \App\Http\Middleware\AdminRedirect::class,
             'user' => \App\Http\Middleware\UserRedirect::class,
             'guest' => \App\Http\Middleware\Guest::class,
+            'declaration.agreed' => \App\Http\Middleware\EnsureDeclarationAgreed::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
