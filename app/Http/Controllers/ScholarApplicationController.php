@@ -119,7 +119,7 @@ class ScholarApplicationController extends Controller
                 'discipline'           => ['nullable', 'string', 'max:255'],
                 'specialization'       => ['nullable', 'string', 'max:255'],
                 'specialization_other' => ['nullable', 'string', 'max:255'],
-                'programme_mode'       => ['nullable', Rule::in(['full_time', 'part_time', 'FT-Startup', 'Integrated'])],
+                'programme_mode'       => ['nullable', Rule::in(['full_time', 'part_time', 'FT-Startup', 'Integrated', 'FT', 'PT'])],
             ],
             'personal' => [
                 'full_name'         => ['nullable', 'string', 'max:255'],
@@ -465,15 +465,15 @@ class ScholarApplicationController extends Controller
         $this->storeFile($app, $r, 'community_certificate', 'community_certificate');
         $isAbled = in_array($r->input('differently_abled'), ['Yes', '1', 1, true, 'yes'], true);
 
-if ($isAbled) {
-    $this->storeFile($app, $r, 'disability_certificate', 'disability_certificate');
-} else {
-    $doc = $app->documents()->where('document_type', 'disability_certificate')->first();
-    if ($doc) {
-        Storage::disk('public')->delete($doc->file_path);
-        $doc->delete();
-    }
-}
+        if ($isAbled) {
+            $this->storeFile($app, $r, 'disability_certificate', 'disability_certificate');
+        } else {
+            $doc = $app->documents()->where('document_type', 'disability_certificate')->first();
+            if ($doc) {
+                Storage::disk('public')->delete($doc->file_path);
+                $doc->delete();
+            }
+        }
 
         // languages: replace the set
         $app->languages()->delete();
@@ -490,51 +490,51 @@ if ($isAbled) {
         }
     }
 
-   private function saveEducation(Application $app, Request $r, array $d): void
-{
-    $app->educations()->delete();
+    private function saveEducation(Application $app, Request $r, array $d): void
+    {
+        $app->educations()->delete();
 
-    foreach ((array) $r->input('education', []) as $level => $row) {
-        $hasData = collect($row)
-            ->except(['marksheet_removed'])           // ignore the flag for emptiness check
-            ->filter(fn($v) => filled($v))
-            ->isNotEmpty();
+        foreach ((array) $r->input('education', []) as $level => $row) {
+            $hasData = collect($row)
+                ->except(['marksheet_removed'])           // ignore the flag for emptiness check
+                ->filter(fn($v) => filled($v))
+                ->isNotEmpty();
 
-        // Handle removal of a previously-saved marksheet for this level
-        $removed = ($row['marksheet_removed'] ?? '0') === '1';
-        if ($removed) {
-            $this->deleteDocument($app, "marksheet_$level");
+            // Handle removal of a previously-saved marksheet for this level
+            $removed = ($row['marksheet_removed'] ?? '0') === '1';
+            if ($removed) {
+                $this->deleteDocument($app, "marksheet_$level");
+            }
+
+            if (!$hasData) continue;
+
+            $passing = $row['passing'] ?? null; // "Y-m"
+            $app->educations()->create([
+                'education_level' => $level,
+                'subjects'        => $row['subjects'] ?? null,
+                'institution'     => $row['institution'] ?? null,
+                'passing_date'    => $passing ? $passing . '-01' : null,
+                'marks'           => $row['marks'] ?? null,
+            ]);
+
+            // New upload replaces the existing one (updateOrCreate inside storeFile).
+            // Only store if not flagged removed in the same request.
+            if (!$removed) {
+                $this->storeFile($app, $r, "education.$level.marksheet", "marksheet_$level");
+            }
         }
 
-        if (!$hasData) continue;
+        $app->save();
+    }
 
-        $passing = $row['passing'] ?? null; // "Y-m"
-        $app->educations()->create([
-            'education_level' => $level,
-            'subjects'        => $row['subjects'] ?? null,
-            'institution'     => $row['institution'] ?? null,
-            'passing_date'    => $passing ? $passing . '-01' : null,
-            'marks'           => $row['marks'] ?? null,
-        ]);
-
-        // New upload replaces the existing one (updateOrCreate inside storeFile).
-        // Only store if not flagged removed in the same request.
-        if (!$removed) {
-            $this->storeFile($app, $r, "education.$level.marksheet", "marksheet_$level");
+    private function deleteDocument(Application $app, string $docType): void
+    {
+        $doc = $app->documents()->where('document_type', $docType)->first();
+        if ($doc) {
+            Storage::disk('public')->delete($doc->file_path);
+            $doc->delete();
         }
     }
-
-    $app->save();
-}
-
-private function deleteDocument(Application $app, string $docType): void
-{
-    $doc = $app->documents()->where('document_type', $docType)->first();
-    if ($doc) {
-        Storage::disk('public')->delete($doc->file_path);
-        $doc->delete();
-    }
-}
 
     private function saveEligibility(Application $app, Request $r, array $d): void
     {
@@ -654,6 +654,7 @@ private function deleteDocument(Application $app, string $docType): void
             'PT', 'part_time' => 'part_time',
             'Startup Based Ph.D', 'FT-Startup' => 'FT-Startup',
             'Integrated PG + Ph.D', 'Integrated' =>  'Integrated PG + Ph.D',
+            'FT', 'full_time' => 'full_time',
             default           => 'full_time',
         };
     }
@@ -663,7 +664,7 @@ private function deleteDocument(Application $app, string $docType): void
     {
         return [
             'schools'         => [],          // your cascade JSON
-            'programme_modes' => ['full_time' => 'Full Time', 'part_time' => 'Part Time', 'FT-Startup' => 'Startup Based Ph.D', 'Integrated' => 'Integrated PG + Ph.D'],
+            'programme_modes' => ['FT' => 'full_time', 'PT' => 'part_time', 'full_time' => 'Full Time', 'part_time' => 'Part Time', 'FT-Startup' => 'Startup Based Ph.D', 'Integrated' => 'Integrated PG + Ph.D'],
         ];
     }
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationDocument;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use ZipArchive;
@@ -115,6 +116,43 @@ class ApplicationController extends Controller
         abort_if($added === 0 || ! file_exists($tmpPath), 404, 'No document files found on disk.');
 
         return response()->download($tmpPath, basename($tmpPath))->deleteFileAfterSend();
+    }
+
+    public function downloadPdf(Application $application)
+    {
+        $application->load([
+            'languages',
+            'educations',
+            'services',
+            'projects',
+            'courses',
+            'aspirations',
+            'documents',
+        ]);
+
+        $disk = 'public';
+
+        // Pre-encode image documents as base64 so dompdf can embed them
+        $images = [];
+        foreach ($application->documents as $doc) {
+            $ext = strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION));
+            if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif']) && Storage::disk($disk)->exists($doc->file_path)) {
+                $data = Storage::disk($disk)->get($doc->file_path);
+                $mime = $ext === 'png' ? 'image/png' : ($ext === 'gif' ? 'image/gif' : 'image/jpeg');
+                $images[] = [
+                    'type' => $doc->document_type,
+                    'name' => $doc->file_name,
+                    'src'  => 'data:' . $mime . ';base64,' . base64_encode($data),
+                ];
+            }
+        }
+
+        $pdf = Pdf::loadView('admin.applications.pdf', [
+            'app'    => $application,
+            'images' => $images,
+        ])->setPaper('a4');
+
+        return $pdf->download($application->application_no . '_documents.pdf');
     }
 }
 
