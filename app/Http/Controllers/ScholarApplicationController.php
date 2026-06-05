@@ -2,17 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\ApplicationSubmitted;
 use App\Models\Application;
 use App\Models\Payment;
 use App\Models\School;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use Illuminate\Support\Facades\Http;
 
 class ScholarApplicationController extends Controller
 {
@@ -352,7 +354,11 @@ class ScholarApplicationController extends Controller
         $app->status       = 'submitted';
         $app->submitted_at = now();
         $app->save();
-
+        if (!empty($app->email)) {
+            Mail::to($app->email)
+                ->cc('admissions@rgu.ac.in')   // university copy
+                ->send(new ApplicationSubmitted($app));
+        }
         return response()->json([
             'success'  => true,
             'message'  => 'Application submitted successfully.',

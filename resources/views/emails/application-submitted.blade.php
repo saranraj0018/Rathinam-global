@@ -8,7 +8,11 @@ A copy of your registered application will be sent to your registered
 email address shortly.
 
 @if(!empty($app->full_name))
-**Applicant:** {{ $app->full_name }}
+**Applicant Name:** {{ $app->full_name }}
+@endif
+
+@if(!empty($app->application_no))
+**Application Number:** {{ $app->application_no }}
 @endif
 
 Thank you for applying.
