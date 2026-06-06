@@ -41,8 +41,8 @@
             initiatePayment: "{{ route('scholar.payment.initiate') }}"
         };
     </script>
-    <script src="{{ asset('js/toast.js') }}?v=1.0.1"></script>
-    <script src="{{ asset('js/scholar.js') }}?v=1.0.1"></script>
+    <script src="{{ asset('js/toast.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/scholar.js') }}?v={{ time() }}"></script>
     @stack('scripts')
 </body>
 

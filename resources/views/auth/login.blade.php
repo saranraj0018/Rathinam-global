@@ -33,8 +33,8 @@
                     </div>
                     <p class="f-error" data-error-for="password"></p>
                 </div>
-
-                <button type="submit" class="btn btn-primary">Sign In</button>
+               <a href="{{ route('password.request') }}" class="block text-right text-sm text-blue-600 hover:underline mt-1 mb-3 auth__forgot">Forgot password?</a>
+                <button type="submit" class="btn btn-primary mt-1">Sign In</button>
             </form>
             <p class="auth__alt">Don’t have an account? <a href="{{ route('auth.register') }}">Sign Up</a></p>
         </div>

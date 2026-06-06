@@ -119,48 +119,85 @@ class ApplicationController extends Controller
     }
 
     public function downloadPdf(Application $application)
-    {
-        $application->load([
-            'languages',
-            'educations',
-            'services',
-            'projects',
-            'courses',
-            'aspirations',
-            'documents',
-        ]);
+{
+    $application->load([
+        'languages',
+        'educations',
+        'services',
+        'projects',
+        'courses',
+        'aspirations',
+        'documents',
+    ]);
 
-        $disk = 'public';
+    $disk = 'public';
 
-        // Logo as base64 — place your file at public/images/logo.png
-        $logoSrc = null;
-        $logoPath = public_path('images/logo.png');
-        if (is_file($logoPath)) {
-            $logoSrc = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
+    // Logo as base64
+    $logoSrc = null;
+    $logoPath = public_path('images/logo.png');
+    if (is_file($logoPath)) {
+        $logoSrc = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
+    }
+
+    $images = [];
+    foreach ($application->documents as $doc) {
+        $ext = strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION));
+
+        if (! Storage::disk($disk)->exists($doc->file_path)) {
+            continue;
         }
 
-        // Embed image documents only (jpg/png/gif)
-        $images = [];
-        foreach ($application->documents as $doc) {
-            $ext = strtolower(pathinfo($doc->file_path, PATHINFO_EXTENSION));
-            if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif']) && Storage::disk($disk)->exists($doc->file_path)) {
-                $data = Storage::disk($disk)->get($doc->file_path);
-                $mime = $ext === 'png' ? 'image/png' : ($ext === 'gif' ? 'image/gif' : 'image/jpeg');
-                $images[] = [
-                    'type' => $doc->document_type,
-                    'name' => $doc->file_name,
-                    'src'  => 'data:' . $mime . ';base64,' . base64_encode($data),
-                ];
+        // Image documents
+        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
+            $data = Storage::disk($disk)->get($doc->file_path);
+            $mime = $ext === 'png' ? 'image/png' : ($ext === 'gif' ? 'image/gif' : 'image/jpeg');
+            $images[] = [
+                'type' => $doc->document_type,
+                'name' => $doc->file_name,
+                'src'  => 'data:' . $mime . ';base64,' . base64_encode($data),
+            ];
+        }
+
+        // PDF documents -> convert each page to image
+        elseif ($ext === 'pdf') {
+            $absolutePath = Storage::disk($disk)->path($doc->file_path);
+
+            try {
+                $imagick = new \Imagick();
+                $imagick->setResolution(150, 150); // higher = sharper, larger
+                $imagick->readImage($absolutePath);
+                $imagick->setImageFormat('jpeg');
+                $imagick->setImageCompressionQuality(85);
+
+                $pageNum = 1;
+                foreach ($imagick as $page) {
+                    $page->setImageBackgroundColor('white');
+                    $page = $page->flattenImages(); // remove transparency
+                    $page->setImageFormat('jpeg');
+
+                    $blob = $page->getImageBlob();
+                    $images[] = [
+                        'type' => $doc->document_type,
+                        'name' => $doc->file_name . ' (page ' . $pageNum . ')',
+                        'src'  => 'data:image/jpeg;base64,' . base64_encode($blob),
+                    ];
+                    $pageNum++;
+                }
+
+                $imagick->clear();
+                $imagick->destroy();
+            } catch (\Exception $e) {
+                \Log::error('PDF to image failed: ' . $e->getMessage());
             }
         }
-
-        $pdf = Pdf::loadView('admin.applications.pdf', [
-            'app'     => $application,
-            'images'  => $images,
-            'logoSrc' => $logoSrc,
-        ])->setPaper('a4')->setOption('isRemoteEnabled', true);
-
-        return $pdf->download($application->application_no . '_application.pdf');
-
     }
+
+    $pdf = Pdf::loadView('admin.applications.pdf', [
+        'app'     => $application,
+        'images'  => $images,
+        'logoSrc' => $logoSrc,
+    ])->setPaper('a4')->setOption('isRemoteEnabled', true);
+
+    return $pdf->download($application->application_no . '_application.pdf');
+}
 }

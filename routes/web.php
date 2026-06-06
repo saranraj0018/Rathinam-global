@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\ScholarApplicationController;
+use App\Http\Controllers\Web\NewPasswordController;
+use App\Http\Controllers\Web\PasswordResetLinkController;
 use App\Http\Controllers\Web\RegisterController;
 use Illuminate\Support\Facades\Route;
 
@@ -22,6 +24,12 @@ Route::view('/register', 'auth.register')->name('auth.register');
 Route::post('/register', [RegisterController::class, 'userRegisterUpdate'])->name('auth.register.store');
 Route::post('/login', [RegisterController::class, 'userAuthenticate'])->name('auth.login.store');
 Route::post('/logout', [RegisterController::class, 'userLogout'])->name('auth.logout');
+
+//forgot password
+Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
+Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
+Route::post('reset-password', [NewPasswordController::class, 'store'])->name('password.update');
 
 Route::middleware(['auth:user', 'declaration.agreed'])->group(function () {
     Route::get('/apply',                    [ScholarApplicationController::class, 'create'])->name('scholar.create');

@@ -58,7 +58,7 @@
         <div class="callout callout--warn">
             <strong>RGU Common Eligibility Test (CET)</strong>
             Since you have not qualified in a National / State level examination, you must clear the
-            <strong>RGU Common Eligibility Test (CET)</strong> to be considered for admission.
+            to be considered for admission.
         </div>
     </div>
 </section>

@@ -18,5 +18,5 @@ email address shortly.
 Thank you for applying.
 
 Thanks,<br>
-{{ config('app.name') }}
+Rathinam Global Deemed to be University
 @endcomponent
