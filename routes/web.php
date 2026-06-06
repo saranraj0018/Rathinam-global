@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\NewPasswordController;
 use App\Http\Controllers\Web\PasswordResetLinkController;
 use App\Http\Controllers\Web\RegisterController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
 
 Route::get('/', function () {
     return redirect()->route('scholar.create');
@@ -13,11 +14,16 @@ Route::get('/', function () {
 
 require __DIR__ . '/admin.php';
 
-// Route::get('/apply', [ScholarApplicationController::class, 'create'])->name('scholar.create');
-// Route::post('/apply', [ScholarApplicationController::class, 'store'])->name('scholar.store');
-// Route::get('/apply/thank-you', [ScholarApplicationController::class, 'thankyou'])->name('scholar.thankyou');
 
-// Auth UI only — backend team to wire the POST handlers.
+Route::get('/clear-cache', function () {
+    Artisan::call('cache:clear');
+    Artisan::call('config:clear');
+    Artisan::call('route:clear');
+    Artisan::call('view:clear');
+
+    return 'Cache cleared successfully!';
+});
+
 Route::view('/login', 'auth.login')->name('auth.login');
 Route::post('declaration/confirm', [RegisterController::class, 'confirmDeclaration'])->name('auth.declaration.confirm');
 Route::view('/register', 'auth.register')->name('auth.register');
