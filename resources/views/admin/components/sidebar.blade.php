@@ -27,7 +27,7 @@
     <!-- Menu -->
     <nav class="flex-1 px-3 py-4 space-y-1.5 text-sm">
 
-        <a href="{{ route('dashboard') }}"
+        {{-- <a href="{{ route('dashboard') }}"
             class="group relative flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-all duration-150
                 {{ request()->is('dashboard')
                     ? 'bg-gradient-to-r from-[#c9a35a] to-[#e6c98b] text-[#1a1408] font-semibold shadow-[0_8px_22px_-10px_rgba(201,163,90,.7)]'
@@ -38,7 +38,7 @@
             @endif
             <i class="fas fa-tachometer-alt w-5 text-center {{ request()->is('dashboard') ? '' : 'text-[#c9a35a] group-hover:text-[#e6c98b]' }}"></i>
             <span x-show="sidebarOpen">Dashboard</span>
-        </a>
+        </a> --}}
 
         <a href="{{ route('applications') }}"
             class="group relative flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-all duration-150
