@@ -15,7 +15,7 @@
 
         @if (!empty(session()->get('user')))
             <div class="relative">
-                <img id="profileToggle" src="https://i.pravatar.cc/40"
+                <img id="profileToggle" src="{{ asset('img/p1.jpeg') }}"
                     class="w-10 h-10 rounded-full cursor-pointer ring-2 ring-line hover:ring-gold transition">
                 <div id="profileDropdown"
                     class="hidden absolute right-0 mt-2 w-64 bg-surface rounded-xl shadow-[0_20px_50px_-20px_rgba(0,0,0,.8)] border border-line2 overflow-hidden z-50">
