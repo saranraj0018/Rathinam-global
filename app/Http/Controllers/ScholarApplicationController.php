@@ -496,24 +496,48 @@ class ScholarApplicationController extends Controller
         }
     }
 
-    private function saveEducation(Application $app, Request $r, array $d): void
+    private function saveEducation(\App\Models\Application $app, \Illuminate\Http\Request $r, array $d): void
     {
+        $postedEducation = (array) $r->input('education', []);
+
+        // Track which levels are present (with data) in this submission so we can
+        // clean up marksheets for levels that were fully cleared/removed.
+        $levelsKept = [];
+
+        // Wipe and rebuild the education rows from the current POST.
         $app->educations()->delete();
 
-        foreach ((array) $r->input('education', []) as $level => $row) {
+        foreach ($postedEducation as $level => $row) {
+            $row = (array) $row;
+
+            // Does the row carry any real data (ignoring the removal flag)?
             $hasData = collect($row)
-                ->except(['marksheet_removed'])           // ignore the flag for emptiness check
+                ->except(['marksheet_removed'])
                 ->filter(fn($v) => filled($v))
                 ->isNotEmpty();
 
-            // Handle removal of a previously-saved marksheet for this level
             $removed = ($row['marksheet_removed'] ?? '0') === '1';
+
+            // A new file uploaded for this level in THIS request?
+            $hasNewFile = $r->hasFile("education.$level.marksheet");
+
+            // ── 1. Explicit removal of the saved marksheet ──
             if ($removed) {
                 $this->deleteDocument($app, "marksheet_$level");
             }
 
-            if (!$hasData) continue;
+            // ── 2. Empty row → no education record; clean up any saved file ──
+            if (!$hasData) {
+                // If the row is empty and there's no fresh upload, the level was
+                // cleared → drop its saved marksheet (if any) so the table doesn't
+                // keep an orphaned document.
+                if (!$hasNewFile) {
+                    $this->deleteDocument($app, "marksheet_$level");
+                }
+                continue;
+            }
 
+            // ── 3. Row has data → (re)create the education record ──
             $passing = $row['passing'] ?? null; // "Y-m"
             $app->educations()->create([
                 'education_level' => $level,
@@ -522,25 +546,30 @@ class ScholarApplicationController extends Controller
                 'passing_date'    => $passing ? $passing . '-01' : null,
                 'marks'           => $row['marks'] ?? null,
             ]);
+            $levelsKept[] = $level;
 
-            // New upload replaces the existing one (updateOrCreate inside storeFile).
-            // Only store if not flagged removed in the same request.
-            if (!$removed) {
+            // ── 4. File handling for a data-bearing row ──
+            if ($hasNewFile) {
+                // New upload replaces any existing document for this type.
                 $this->storeFile($app, $r, "education.$level.marksheet", "marksheet_$level");
             }
+            // else: no new file. If it was removed (step 1) the document is gone.
+            // If it was NOT removed, the previously-saved file is intentionally
+            // kept — do nothing.
         }
 
         $app->save();
     }
 
-    private function deleteDocument(Application $app, string $docType): void
+    private function deleteDocument(\App\Models\Application $app, string $docType): void
     {
         $doc = $app->documents()->where('document_type', $docType)->first();
         if ($doc) {
-            Storage::disk('public')->delete($doc->file_path);
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($doc->file_path);
             $doc->delete();
         }
     }
+
 
     private function saveEligibility(Application $app, Request $r, array $d): void
     {

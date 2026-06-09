@@ -456,6 +456,7 @@
         form.querySelectorAll("[data-edu-row]").forEach(function (row) {
             var wrap = row.querySelector("[data-edu-upload]");
             if (!wrap) return;
+
             var input = wrap.querySelector(".edu-up__input");
             var fileBox = wrap.querySelector(".edu-up__file");
             var nameEl = wrap.querySelector(".edu-up__name");
@@ -463,11 +464,26 @@
             var err = row.querySelector(".f-error");
             var fields = row.querySelectorAll(".edu-field");
 
-            function complete() {
+            // The hidden flag that tells the server to delete a saved marksheet.
+            var removedFlag = wrap.querySelector("[data-removed-flag]");
+
+            function allFilled() {
                 return Array.prototype.every.call(fields, function (f) {
                     return f.value.trim() !== "";
                 });
             }
+            function anyFilled() {
+                return Array.prototype.some.call(fields, function (f) {
+                    return f.value.trim() !== "";
+                });
+            }
+
+            function hasLiveSavedFile() {
+                if (wrap.getAttribute("data-has-saved") !== "1") return false;
+                if (removedFlag && removedFlag.value === "1") return false;
+                return true;
+            }
+
             function clearErr() {
                 if (err) {
                     err.textContent = "";
@@ -490,17 +506,34 @@
             }
 
             function sync() {
-                var ok = complete();
-                if (input) input.disabled = !ok;
-                wrap.classList.toggle("is-locked", !ok);
-                if (!ok) {
+                var any = anyFilled();
+
+                // Enable the input the moment the user starts the row, NOT only
+                // when every field is complete — otherwise validateStep() skips
+                // it (disabled inputs are treated as inactive) and the "required"
+                // error can never show.
+                if (input) input.disabled = !any;
+                wrap.classList.toggle("is-locked", !any);
+
+                if (!any) {
                     resetFile();
                     clearErr();
+                }
+
+                // Decide whether the marksheet is required for this row.
+                if (input) {
+                    var needsFile = any && !hasLiveSavedFile();
+                    if (needsFile) {
+                        input.setAttribute("data-required", "true");
+                    } else {
+                        input.removeAttribute("data-required");
+                    }
                 }
             }
 
             fields.forEach(function (f) {
                 f.addEventListener("input", sync);
+                f.addEventListener("change", sync);
             });
 
             if (input) {
@@ -531,6 +564,8 @@
                     clearErr();
                     if (fileBox) fileBox.hidden = false;
                     if (nameEl) nameEl.textContent = f.name;
+                    // A freshly picked file satisfies the requirement; clear the flag.
+                    input.removeAttribute("data-required");
                 });
             }
 
@@ -538,14 +573,15 @@
                 removeBtn.addEventListener("click", function () {
                     resetFile();
                     clearErr();
+                    // Re-evaluate: removing a freshly picked file may re-require it.
+                    sync();
                 });
+
             sync();
         });
     }
 
     function initEduSavedFiles(form) {
-        // When a saved marksheet exists, enable that row's file input even before
-        // the text fields are (re)validated, and wire up the "remove saved" button.
         form.querySelectorAll("[data-removed-flag]").forEach(function (flag) {
             var docType = flag.getAttribute("data-removed-flag");
             var wrap = flag.closest("[data-edu-upload]");
@@ -557,21 +593,25 @@
             if (!removeBtn) return;
 
             removeBtn.addEventListener("click", function () {
-                // Mark for server-side deletion
                 flag.value = "1";
-
-                // Hide the saved preview box
                 var box = document.getElementById("saved-" + docType);
                 if (box) box.hidden = true;
-
-                // Re-impose "required" so the user must re-upload (only if the
-                // row is required — data-required was cleared by hydrateFiles)
-                if (
-                    input &&
-                    wrap &&
-                    wrap.getAttribute("data-was-required") === "1"
-                ) {
-                    input.setAttribute("data-required", "true");
+                if (wrap) {
+                    wrap.removeAttribute("data-has-saved");
+                    if (
+                        input &&
+                        wrap.getAttribute("data-was-required") === "1"
+                    ) {
+                        input.setAttribute("data-required", "true");
+                    }
+                    var anyField = wrap
+                        .closest("[data-edu-row]")
+                        .querySelector(".edu-field");
+                    if (anyField) {
+                        anyField.dispatchEvent(
+                            new Event("input", { bubbles: true }),
+                        );
+                    }
                 }
             });
         });
@@ -1032,12 +1072,12 @@
             ? ackModal.querySelector("[data-ack-overlay]")
             : null;
 
-       function openAck() {
-           if (ackModal) ackModal.style.display = "flex";
-       }
-       function closeAck() {
-           if (ackModal) ackModal.style.display = "none";
-       }
+        function openAck() {
+            if (ackModal) ackModal.style.display = "flex";
+        }
+        function closeAck() {
+            if (ackModal) ackModal.style.display = "none";
+        }
 
         function doSubmit() {
             sendRequest(
@@ -1467,8 +1507,12 @@
             hydrateEnclosures(form, d.enclosures || {});
             hydrateFiles(form, d.files || {});
 
-            // Nudge non-cascade controls so reveals / age calc update — but
-            // DON'T re-dispatch on cascade selects (would wipe their values).
+            form.querySelectorAll("[data-edu-row] .edu-field").forEach(
+                function (f) {
+                    f.dispatchEvent(new Event("input", { bubbles: true }));
+                },
+            );
+
             form.querySelectorAll("input, select, textarea").forEach(
                 function (el) {
                     if (
@@ -1763,10 +1807,20 @@
                 var euWrap = inp.closest("[data-edu-upload]");
                 if (euWrap) {
                     euWrap.classList.remove("is-locked");
-                    // remember it was required so "remove saved" can restore it
-                    if (inp.getAttribute("data-required") === "true") {
+
+                    // Remember whether this row was required (check BOTH attributes,
+                    // because data-required may not be set yet at hydrate time).
+                    if (
+                        inp.getAttribute("data-required") === "true" ||
+                        inp.required
+                    ) {
                         euWrap.setAttribute("data-was-required", "1");
                     }
+
+                    // Always mark that a saved file exists for this row, regardless of
+                    // the required state. sync() uses this to avoid re-requiring an
+                    // upload for rows the server already has a file for.
+                    euWrap.setAttribute("data-has-saved", "1");
                 }
             }
 
