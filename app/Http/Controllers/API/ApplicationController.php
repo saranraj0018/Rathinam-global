@@ -21,7 +21,6 @@ class ApplicationController extends Controller
             'documents',
             'enclosures'
         ])
-            ->where('payment_status', 'paid')
             ->get()
             ->map(function ($application) {
 
