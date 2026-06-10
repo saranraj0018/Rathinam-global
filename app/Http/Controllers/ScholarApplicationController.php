@@ -25,23 +25,17 @@ class ScholarApplicationController extends Controller
             return null; // manual item (e.g. foreign-degree)
         }
 
-        // education[<level>][marksheet]  ->  marksheet_<level>
         if (preg_match('/^education\[([^\]]+)\]\[marksheet\]$/', $source, $m)) {
             return 'marksheet_' . $m[1];
         }
 
-        // aliases for sources whose name differs from the stored type
         $aliases = [
             'community_cert' => 'community_certificate',
         ];
-
         return $aliases[$source] ?? $source;
     }
 
-    /**
-     * Build a per-enclosure status map the view can read directly.
-     * Returns: [ enclosure_key => ['checked' => bool, 'doc_type' => string|null] ]
-     */
+
     private function buildEnclosureStatus(Application $app): array
     {
         $existingTypes = $app->documents()->pluck('document_type')->all();
@@ -70,7 +64,7 @@ class ScholarApplicationController extends Controller
     public function create(): View
     {
         $user = Auth::guard('user')->user();
-        $app  = $this->currentDraft();   // by user_id + status=draft (device-independent)
+        $app  = $this->currentDraft();
 
         $draft = [];
         $enclosureStatus = [];
@@ -78,7 +72,6 @@ class ScholarApplicationController extends Controller
 
         if ($app) {
             $app->load(['enclosures', 'documents']);
-
             $draft = [
                 'school'               => $app->school,
                 'discipline'           => $app->discipline,
@@ -97,7 +90,6 @@ class ScholarApplicationController extends Controller
                     ]])
                     ->all(),
             ];
-
             $status          = $app->status ?? '';
             $enclosureStatus = $this->buildEnclosureStatus($app);
         }
@@ -121,6 +113,7 @@ class ScholarApplicationController extends Controller
                 'discipline'           => ['nullable', 'string', 'max:255'],
                 'specialization'       => ['nullable', 'string', 'max:255'],
                 'specialization_other' => ['nullable', 'string', 'max:255'],
+                'engineering_stream'   => ['required'],
                 'programme_mode'       => ['nullable', Rule::in(['full_time', 'part_time', 'FT-Startup', 'Integrated', 'FT', 'PT'])],
             ],
             'personal' => [
@@ -249,6 +242,7 @@ class ScholarApplicationController extends Controller
             'total_service_months' => $app->total_service_months,
             'career_other'         => $app->career_other,
             'enclosures_confirm'   => (bool) $app->enclosures_confirm,
+            'engineering_stream'   =>  $app->engineering_stream,
             // ── declaration (read from the JSON `declaration` column) ──
             'declaration_agree'     => (bool) ($decl['agree'] ?? false),
             'declaration_date'      => $decl['date'] ?? null,
@@ -303,7 +297,6 @@ class ScholarApplicationController extends Controller
 
     public function saveStep(Request $request, string $step)
     {
-
         $data = $request->validate($this->stepRules($step));
         $app  = $this->currentDraft(orCreate: true);
         match ($step) {
@@ -438,6 +431,7 @@ class ScholarApplicationController extends Controller
             'discipline'           => $d['discipline'] ?? $app->discipline,
             'specialization'       => $specialization,
             'specialization_other' => $d['specialization_other'] ?? null,
+            'engineering_stream' => $d['engineering_stream'],
             'programme_mode'       => $this->normMode($d['programme_mode'] ?? $app->programme_mode),
         ]);
         $app->save();
@@ -499,38 +493,21 @@ class ScholarApplicationController extends Controller
     private function saveEducation(\App\Models\Application $app, \Illuminate\Http\Request $r, array $d): void
     {
         $postedEducation = (array) $r->input('education', []);
-
-        // Track which levels are present (with data) in this submission so we can
-        // clean up marksheets for levels that were fully cleared/removed.
         $levelsKept = [];
-
-        // Wipe and rebuild the education rows from the current POST.
         $app->educations()->delete();
-
         foreach ($postedEducation as $level => $row) {
             $row = (array) $row;
-
-            // Does the row carry any real data (ignoring the removal flag)?
             $hasData = collect($row)
                 ->except(['marksheet_removed'])
                 ->filter(fn($v) => filled($v))
                 ->isNotEmpty();
 
             $removed = ($row['marksheet_removed'] ?? '0') === '1';
-
-            // A new file uploaded for this level in THIS request?
             $hasNewFile = $r->hasFile("education.$level.marksheet");
-
-            // ── 1. Explicit removal of the saved marksheet ──
             if ($removed) {
                 $this->deleteDocument($app, "marksheet_$level");
             }
-
-            // ── 2. Empty row → no education record; clean up any saved file ──
             if (!$hasData) {
-                // If the row is empty and there's no fresh upload, the level was
-                // cleared → drop its saved marksheet (if any) so the table doesn't
-                // keep an orphaned document.
                 if (!$hasNewFile) {
                     $this->deleteDocument($app, "marksheet_$level");
                 }
@@ -550,12 +527,8 @@ class ScholarApplicationController extends Controller
 
             // ── 4. File handling for a data-bearing row ──
             if ($hasNewFile) {
-                // New upload replaces any existing document for this type.
                 $this->storeFile($app, $r, "education.$level.marksheet", "marksheet_$level");
             }
-            // else: no new file. If it was removed (step 1) the document is gone.
-            // If it was NOT removed, the previously-saved file is intentionally
-            // kept — do nothing.
         }
 
         $app->save();
@@ -569,7 +542,6 @@ class ScholarApplicationController extends Controller
             $doc->delete();
         }
     }
-
 
     private function saveEligibility(Application $app, Request $r, array $d): void
     {
@@ -643,8 +615,6 @@ class ScholarApplicationController extends Controller
     {
         $app->enclosures_confirm = $r->boolean('enclosures_confirm');
         $app->save();
-
-        // Store any newly uploaded enclosure files (field name == document_type).
         $this->storeFile($app, $r, 'noc_document', 'noc_document');
         $this->storeFile($app, $r, 'service_certificate', 'service_certificate');
         $this->storeFile($app, $r, 'equivalence_certificate', 'equivalence_certificate');
@@ -686,11 +656,11 @@ class ScholarApplicationController extends Controller
     private function normMode(?string $mode): string
     {
         return match ($mode) {
-            'PT', 'part_time' => 'part_time',
+            'PT', 'part_time' => 'PT',
             'Startup Based Ph.D', 'FT-Startup' => 'FT-Startup',
-            'Integrated PG + Ph.D', 'Integrated' =>  'Integrated PG + Ph.D',
-            'FT', 'full_time' => 'full_time',
-            default           => 'full_time',
+            'Integrated PG + Ph.D', 'Integrated' =>  'Integrated',
+            'FT', 'full_time' => 'FT',
+            default           => 'FT',
         };
     }
 

@@ -21,21 +21,24 @@ class ApplicationController extends Controller
             'documents',
             'enclosures'
         ])
+            ->where('payment_status','paid')
+            ->where('status','submitted')
             ->get()
             ->map(function ($application) {
-
                 return [
                     'id' => $application->id,
                     'application_no' => $application->application_no,
                     'current_step' => $application->current_step,
                     'status' => $application->status,
                     'payment_status' => $application->payment_status,
-
+                    'eligibility_qualified' => $application->eligibility_qualified,
+                    'eligibility_exam' => $application->eligibility_exam,
                     // Programme
                     'school' => $application->school,
                     'discipline' => $application->discipline,
                     'specialization' => $application->specialization,
                     'specialization_other' => $application->specialization_other,
+                    'engineering_stream' => $application->engineering_stream,
                     'programme_mode' => $application->programme_mode,
 
                     // Personal
@@ -50,61 +53,23 @@ class ApplicationController extends Controller
                     'mother_name' => $application->mother_name,
                     'mobile' => $application->mobile,
                     'email' => $application->email,
-
-                    // Image URL
-                    'photo' => $application->photo
-                        ? asset('storage/' . $application->photo)
-                        : null,
-
-                    'community_certificate' => $application->community_certificate
-                        ? asset('storage/' . $application->community_certificate)
-                        : null,
-
-                    'disability_certificate' => $application->disability_certificate
-                        ? asset('storage/' . $application->disability_certificate)
-                        : null,
-
-                    'eligibility_certificate' => $application->eligibility_certificate
-                        ? asset('storage/' . $application->eligibility_certificate)
-                        : null,
-
-                    'summary_document' => $application->summary_document
-                        ? asset('storage/' . $application->summary_document)
-                        : null,
-
-                    'noc_document' => $application->noc_document
-                        ? asset('storage/' . $application->noc_document)
-                        : null,
-
-                    'service_certificate' => $application->service_certificate
-                        ? asset('storage/' . $application->service_certificate)
-                        : null,
-
-                    'equivalence_certificate' => $application->equivalence_certificate
-                        ? asset('storage/' . $application->equivalence_certificate)
-                        : null,
-
+                    'single_girl_child' => $application->single_girl_child,
+                    'enclosures_confirm' => $application->enclosures_confirm,
+                    'differently_abled' => $application->differently_abled,
                     // Address
                     'address_current' => $application->address_current,
                     'address_same' => $application->address_same,
                     'address_permanent' => $application->address_permanent,
+                    'declaration' => $application->declaration,
 
                     // Relations
                     'languages' => $application->languages,
-
                     'educations' => $application->educations,
-
                     'services' => $application->services,
-
                     'projects' => $application->projects,
-
                     'courses' => $application->courses,
-
                     'aspirations' => $application->aspirations,
-
                     'enclosures' => $application->enclosures,
-
-                    // Documents with full URL
                     'documents' => $application->documents->map(function ($document) {
                         return [
                             'id' => $document->id,

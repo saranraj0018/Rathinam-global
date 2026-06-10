@@ -73,6 +73,7 @@
         initEnclosures(form);
         initAge(form);
         initSignature(form);
+        initEngineeringStream(form);
         initLiveErrorClearing(form);
         initWizard(form, steps);
         initPayNow(form);
@@ -450,6 +451,55 @@
                 });
             }
         });
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       ENGINEERING STREAM → PROGRAMME MODE FILTER
+    ══════════════════════════════════════════════════════════════════ */
+    function initEngineeringStream(form) {
+        var ENG_ALLOWED_MODES = [
+            "FT",
+            "PT",
+            "FT-Startup",
+         ];
+
+        var engRadios = form.querySelectorAll("[data-eng-stream]");
+        var modeCards = Array.prototype.slice.call(
+            form.querySelectorAll("[data-mode-card]"),
+        );
+        if (!engRadios.length || !modeCards.length) return;
+
+        function isAllowedWhenEng(value) {
+            return ENG_ALLOWED_MODES.indexOf(value) !== -1;
+        }
+
+        function applyFilter() {
+            var sel = form.querySelector('input[name="engineering_stream"]:checked',);
+            var answered = !!sel;
+            var isEng = sel && sel.value === "Yes";
+
+            modeCards.forEach(function (card) {
+                var value = card.getAttribute("data-mode-value");
+                var radio = card.querySelector('input[name="programme_mode"]');
+                var allowed = answered && (!isEng || isAllowedWhenEng(value));
+                card.hidden = !allowed;
+                if (radio) {
+                    radio.disabled = !allowed;
+                    if (!allowed && radio.checked) radio.checked = false;
+                }
+            });
+
+            updatePtOnly(form);
+        }
+
+        engRadios.forEach(function (r) {
+            r.addEventListener("change", applyFilter);
+        });
+
+        // Expose so hydrate can re-apply after restoring saved values.
+        form._applyEngFilter = applyFilter;
+
+        applyFilter();
     }
 
     function initEduUploads(form) {
@@ -1473,8 +1523,6 @@
         // ── 2. Fill field values ──
         if (res.draft) {
             var d = res.draft;
-
-            // Generic scalar loop — skip structured AND cascade keys.
             var SKIP = [
                 "languages",
                 "education",
@@ -1524,6 +1572,7 @@
                     el.dispatchEvent(new Event("change", { bubbles: true }));
                 },
             );
+            if (form._applyEngFilter) form._applyEngFilter();
         }
 
         // ── 3. Jump to last saved step (and make that tab active) ──

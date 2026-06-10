@@ -71,12 +71,34 @@
         </div>
     </div>
 
+    {{-- NEW: Engineering Stream --}}
+    <div class="f-group mt-2">
+        <span class="f-label">Engineering Stream <span class="f-req">*</span></span>
+        <div class="choice-grid choice-grid--2" data-validate-radio="engineering_stream">
+            <label class="choice-card">
+                <input type="radio" name="engineering_stream" value="Yes" required data-eng-stream>
+                <span class="choice-card__box">
+                    <span class="choice-card__title">Yes</span>
+                </span>
+            </label>
+            <label class="choice-card">
+                <input type="radio" name="engineering_stream" value="No" required data-eng-stream>
+                <span class="choice-card__box">
+                    <span class="choice-card__title">No</span>
+                </span>
+            </label>
+        </div>
+        <p class="f-hint">If your stream is Engineering, only Full-Time, Part-Time and Startup-Based Ph.D modes are
+            available.</p>
+        <p class="f-error" data-error-for="engineering_stream"></p>
+    </div>
+
     {{-- 2. Programme Mode --}}
     <div class="f-group mt-2">
         <span class="f-label">Programme Mode <span class="f-req">*</span></span>
         <div class="choice-grid choice-grid--4" data-validate-radio="programme_mode">
             @foreach ($data['programme_modes'] as $value => $label)
-                <label class="choice-card">
+                <label class="choice-card" data-mode-card data-mode-value="{{ $value }}">
                     <input type="radio" name="programme_mode" value="{{ $value }}" required>
                     <span class="choice-card__box">
                         <span class="choice-card__title">{{ $label }}</span>
