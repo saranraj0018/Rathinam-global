@@ -93,6 +93,9 @@
        <div id="community-cert-wrap" hidden>
     <div class="f-group">
         <label class="f-label">Community Certificate <span class="f-req">*</span></label>
+        @php
+                $hasSavedPhoto = !empty($draft['files']['community_certificate']['url'] ?? null);
+        @endphp
 
         {{-- Saved file preview (shown by JS when draft has this file) --}}
         <div class="saved-file-preview" id="saved-community_certificate" hidden>
@@ -108,7 +111,7 @@
             <p class="f-hint">Re-upload below to replace the existing file.</p>
         </div>
 
-        <x-upload name="community_certificate" label="" />
+        <x-upload name="community_certificate" label=""  :image="true" :required="!$hasSavedPhoto"/>
     </div>
 </div>
     </div>
