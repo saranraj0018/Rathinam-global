@@ -90,30 +90,30 @@
     <div class="grid gap-5 sm:grid-cols-2">
         <x-select-field name="community" label="Community" required :options="$data['communities']"
             hint="Self-attested copy required (next field)." />
-       <div id="community-cert-wrap" hidden>
-    <div class="f-group">
-        <label class="f-label">Community Certificate <span class="f-req">*</span></label>
-        @php
-                $hasSavedPhoto = !empty($draft['files']['community_certificate']['url'] ?? null);
-        @endphp
+        <div id="community-cert-wrap" hidden>
+            <div class="f-group">
+                <label class="f-label">Community Certificate <span class="f-req">*</span></label>
+                @php
+                    $hasSavedPhoto = !empty($draft['files']['community_certificate']['url'] ?? null);
+                @endphp
 
-        {{-- Saved file preview (shown by JS when draft has this file) --}}
-        <div class="saved-file-preview" id="saved-community_certificate" hidden>
-            <div class="saved-file-box">
-                <svg class="saved-file-icon" ...></svg>
-                <div class="saved-file-info">
-                    <span class="saved-file-name" data-saved-name="community_certificate"></span>
-                    <a class="saved-file-link" data-saved-url="community_certificate"
-                       target="_blank" href="#">View uploaded file</a>
+                {{-- Saved file preview (shown by JS when draft has this file) --}}
+                <div class="saved-file-preview" id="saved-community_certificate" hidden>
+                    <div class="saved-file-box">
+                        <svg class="saved-file-icon" ...></svg>
+                        <div class="saved-file-info">
+                            <span class="saved-file-name" data-saved-name="community_certificate"></span>
+                            <a class="saved-file-link" data-saved-url="community_certificate" target="_blank"
+                                href="#">View uploaded file</a>
+                        </div>
+                        <span class="saved-file-badge">Already uploaded</span>
+                    </div>
+                    <p class="f-hint">Re-upload below to replace the existing file.</p>
                 </div>
-                <span class="saved-file-badge">Already uploaded</span>
-            </div>
-            <p class="f-hint">Re-upload below to replace the existing file.</p>
-        </div>
 
-        <x-upload name="community_certificate" label=""  :image="true" :required="!$hasSavedPhoto"/>
-    </div>
-</div>
+                <x-upload name="community_certificate" label="" :image="true" :required="!$hasSavedPhoto" />
+            </div>
+        </div>
     </div>
 
     <div class="f-group">
@@ -131,24 +131,24 @@
         </div>
         <p class="f-error" data-error-for="differently_abled"></p>
         <div id="disability-cert-wrap" class="mt-3" hidden>
-    <div class="f-group">
-        <label class="f-label">Disability Certificate <span class="f-req">*</span></label>
+            <div class="f-group">
+                <label class="f-label">Disability Certificate <span class="f-req">*</span></label>
 
-        <div class="saved-file-preview" id="saved-disability_certificate" hidden>
-            <div class="saved-file-box">
-                <div class="saved-file-info">
-                    <span class="saved-file-name" data-saved-name="disability_certificate"></span>
-                    <a class="saved-file-link" data-saved-url="disability_certificate"
-                       target="_blank" href="#">View uploaded file</a>
+                <div class="saved-file-preview" id="saved-disability_certificate" hidden>
+                    <div class="saved-file-box">
+                        <div class="saved-file-info">
+                            <span class="saved-file-name" data-saved-name="disability_certificate"></span>
+                            <a class="saved-file-link" data-saved-url="disability_certificate" target="_blank"
+                                href="#">View uploaded file</a>
+                        </div>
+                        <span class="saved-file-badge">Already uploaded</span>
+                    </div>
+                    <p class="f-hint">Re-upload below to replace the existing file.</p>
                 </div>
-                <span class="saved-file-badge">Already uploaded</span>
-            </div>
-            <p class="f-hint">Re-upload below to replace the existing file.</p>
-        </div>
 
-        <x-upload name="disability_certificate" label="" />
-    </div>
-</div>
+                <x-upload name="disability_certificate" label="" />
+            </div>
+        </div>
     </div>
 
     <div class="grid gap-5 sm:grid-cols-2">
