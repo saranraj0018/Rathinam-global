@@ -69,9 +69,17 @@ class ScholarApplicationController extends Controller
         $draft = [];
         $enclosureStatus = [];
         $status = '';
+        $savedFiles = [];
 
         if ($app) {
             $app->load(['enclosures', 'documents']);
+            // ← ADD THIS BLOCK
+            $savedFiles = $app->documents
+                ->mapWithKeys(fn($d) => [$d->document_type => [
+                    'name' => $d->file_name,
+                    'url'  => Storage::url($d->file_path),
+                ]])
+                ->all();
             $draft = [
                 'school'               => $app->school,
                 'discipline'           => $app->discipline,
@@ -83,12 +91,7 @@ class ScholarApplicationController extends Controller
                 'enclosures' => $app->enclosures
                     ->mapWithKeys(fn($e) => [$e->enclosure_key => (bool) $e->checked])
                     ->all(),
-                'files' => $app->documents
-                    ->mapWithKeys(fn($d) => [$d->document_type => [
-                        'name' => $d->file_name,
-                        'url'  => Storage::url($d->file_path),
-                    ]])
-                    ->all(),
+                'files' => $savedFiles,
             ];
             $status          = $app->status ?? '';
             $enclosureStatus = $this->buildEnclosureStatus($app);
@@ -100,6 +103,7 @@ class ScholarApplicationController extends Controller
             'draft'           => $draft,
             'status'          => $status,
             'enclosureStatus' => $enclosureStatus,
+            'savedFiles'      => $savedFiles, 
         ]);
     }
 

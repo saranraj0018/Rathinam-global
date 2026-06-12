@@ -457,11 +457,7 @@
        ENGINEERING STREAM → PROGRAMME MODE FILTER
     ══════════════════════════════════════════════════════════════════ */
     function initEngineeringStream(form) {
-        var ENG_ALLOWED_MODES = [
-            "FT",
-            "PT",
-            "FT-Startup",
-         ];
+        var ENG_ALLOWED_MODES = ["FT", "PT", "FT-Startup"];
 
         var engRadios = form.querySelectorAll("[data-eng-stream]");
         var modeCards = Array.prototype.slice.call(
@@ -474,7 +470,9 @@
         }
 
         function applyFilter() {
-            var sel = form.querySelector('input[name="engineering_stream"]:checked',);
+            var sel = form.querySelector(
+                'input[name="engineering_stream"]:checked',
+            );
             var answered = !!sel;
             var isEng = sel && sel.value === "Yes";
 
@@ -514,7 +512,6 @@
             var err = row.querySelector(".f-error");
             var fields = row.querySelectorAll(".edu-field");
 
-            // The hidden flag that tells the server to delete a saved marksheet.
             var removedFlag = wrap.querySelector("[data-removed-flag]");
 
             function allFilled() {
@@ -558,10 +555,6 @@
             function sync() {
                 var any = anyFilled();
 
-                // Enable the input the moment the user starts the row, NOT only
-                // when every field is complete — otherwise validateStep() skips
-                // it (disabled inputs are treated as inactive) and the "required"
-                // error can never show.
                 if (input) input.disabled = !any;
                 wrap.classList.toggle("is-locked", !any);
 
@@ -570,13 +563,17 @@
                     clearErr();
                 }
 
-                // Decide whether the marksheet is required for this row.
                 if (input) {
-                    var needsFile = any && !hasLiveSavedFile();
+                    var hasFreshFile = !!(input.files && input.files.length);
+                    // Treat a saved server file as satisfying the requirement
+                    var savedExists = hasLiveSavedFile();
+                    var needsFile = any && !savedExists && !hasFreshFile;
                     if (needsFile) {
                         input.setAttribute("data-required", "true");
                     } else {
                         input.removeAttribute("data-required");
+                        // Clear any visible error so red text disappears
+                        clearErr();
                     }
                 }
             }
@@ -591,6 +588,8 @@
                     var f = input.files && input.files[0];
                     if (!f) {
                         resetFile();
+                        // Re-run sync to re-evaluate requirement after removal
+                        sync();
                         return;
                     }
                     if (!/\.(pdf|png|jpe?g)$/i.test(f.name)) {
@@ -598,6 +597,7 @@
                             "Only PDF, JPG, JPEG or PNG files are allowed.",
                         );
                         resetFile();
+                        sync();
                         return;
                     }
                     if (f.size > 2048 * 1024) {
@@ -609,23 +609,25 @@
                                 ". Maximum allowed is 2 MB.",
                         );
                         resetFile();
+                        sync();
                         return;
                     }
                     clearErr();
                     if (fileBox) fileBox.hidden = false;
                     if (nameEl) nameEl.textContent = f.name;
-                    // A freshly picked file satisfies the requirement; clear the flag.
+                    // A freshly picked file satisfies the requirement
                     input.removeAttribute("data-required");
                 });
             }
 
-            if (removeBtn)
+            if (removeBtn) {
                 removeBtn.addEventListener("click", function () {
                     resetFile();
                     clearErr();
-                    // Re-evaluate: removing a freshly picked file may re-require it.
+                    // Re-evaluate: removing a freshly picked file may re-require it
                     sync();
                 });
+            }
 
             sync();
         });
@@ -1394,6 +1396,7 @@
             .querySelectorAll("input, select, textarea")
             .forEach(function (f) {
                 if (f.type === "radio") return;
+
                 if (f.type === "checkbox") {
                     if (f.required && isActive(f, stepEl) && !f.checked) {
                         setError(
@@ -1406,9 +1409,81 @@
                     }
                     return;
                 }
+
+                // ── EDU MARKSHEET: evaluated 100% fresh at validation time ──
+                if (f.classList.contains("edu-up__input")) {
+                    var euWrap = f.closest("[data-edu-upload]");
+                    var eduRow = f.closest("[data-edu-row]");
+                    var removedFlag = euWrap
+                        ? euWrap.querySelector("[data-removed-flag]")
+                        : null;
+
+                    // 1. Does the row have any data?
+                    var rowHasData = false;
+                    if (eduRow) {
+                        Array.prototype.forEach.call(
+                            eduRow.querySelectorAll(".edu-field"),
+                            function (rf) {
+                                if (rf.value.trim() !== "") rowHasData = true;
+                            },
+                        );
+                    }
+
+                    // 2. Is there a live saved file on the server?
+                    var hasSavedFile =
+                        euWrap &&
+                        euWrap.getAttribute("data-has-saved") === "1" &&
+                        (!removedFlag || removedFlag.value !== "1");
+
+                    // 3. Did the user pick a new file?
+                    var hasFreshFile = !!(f.files && f.files.length);
+
+                    // 4. Clear error unconditionally first, then re-add only if needed
+                    f.removeAttribute("data-required");
+                    if (euWrap) euWrap.classList.remove("is-invalid");
+                    if (eduRow) {
+                        var errEl = eduRow.querySelector(
+                            '.f-error[data-error-for="' +
+                                f.name.replace(
+                                    /\[marksheet\]$/,
+                                    "[marksheet]",
+                                ) +
+                                '"]',
+                        );
+                        if (!errEl) {
+                            // fallback: grab any .f-error in the row
+                            errEl = eduRow.querySelector(".f-error");
+                        }
+                        if (errEl) {
+                            errEl.textContent = "";
+                            errEl.classList.remove("show");
+                        }
+                    }
+
+                    // 5. Only fail if: row has data AND neither saved nor fresh file exists
+                    var needsUpload =
+                        rowHasData && !hasSavedFile && !hasFreshFile;
+                    if (needsUpload) {
+                        f.setAttribute("data-required", "true");
+                        if (euWrap) euWrap.classList.add("is-invalid");
+                        var errName = f.name.replace("[]", "");
+                        setError(
+                            stepEl,
+                            errName,
+                            "Please upload the mark sheet.",
+                        );
+                        ok = false;
+                        firstBad = firstBad || f;
+                    }
+
+                    return; // skip generic required check for this input
+                }
+                // ── END EDU MARKSHEET ──
+
                 var required =
                     f.required || f.getAttribute("data-required") === "true";
                 if (!required || !isActive(f, stepEl)) return;
+
                 var val = (f.value || "").trim();
                 if (!val) {
                     markInvalid(stepEl, f, "This field is required.");
@@ -1512,7 +1587,6 @@
             return;
         }
 
-        // ── 1. Restore wizard state (completed tabs + payment) FIRST ──
         if (form._setWizardState) {
             form._setWizardState(
                 res.completed_steps || [],
@@ -1520,7 +1594,6 @@
             );
         }
 
-        // ── 2. Fill field values ──
         if (res.draft) {
             var d = res.draft;
             var SKIP = [
@@ -1539,9 +1612,7 @@
                 setField(form, key, d[key]);
             });
 
-            // Cascade FIRST among structured hydrators (waits for options).
             hydrateCascade(form, d);
-
             hydrateLanguages(form, d.languages || []);
             hydrateEducation(form, d.education || {});
             hydrateService(form, d.service || []);
@@ -1553,13 +1624,45 @@
             );
             hydrateCourses(form, d.courses || {});
             hydrateEnclosures(form, d.enclosures || {});
-            hydrateFiles(form, d.files || {});
+            hydrateFiles(form, d.files || {}); // sets data-has-saved="1"
 
-            form.querySelectorAll("[data-edu-row] .edu-field").forEach(
-                function (f) {
-                    f.dispatchEvent(new Event("input", { bubbles: true }));
-                },
-            );
+            // ── Final pass: re-sync all edu-rows after values + saved flags are set ──
+            setTimeout(function () {
+                form.querySelectorAll("[data-edu-row]").forEach(function (row) {
+                    var wrap = row.querySelector("[data-edu-upload]");
+                    var inp = wrap
+                        ? wrap.querySelector(".edu-up__input")
+                        : null;
+                    var err = row.querySelector(".f-error");
+                    var removedFlag = wrap
+                        ? wrap.querySelector("[data-removed-flag]")
+                        : null;
+
+                    // Re-trigger so sync() sees both filled fields + data-has-saved
+                    var anyField = row.querySelector(".edu-field");
+                    if (anyField) {
+                        anyField.dispatchEvent(
+                            new Event("input", { bubbles: true }),
+                        );
+                    }
+
+                    // Force-clear error if a saved file exists and wasn't removed
+                    var hasSaved =
+                        wrap && wrap.getAttribute("data-has-saved") === "1";
+                    var notRemoved = !removedFlag || removedFlag.value !== "1";
+                    if (hasSaved && notRemoved) {
+                        if (inp) {
+                            inp.removeAttribute("data-required");
+                            inp.required = false;
+                        }
+                        if (wrap) wrap.classList.remove("is-invalid");
+                        if (err) {
+                            err.textContent = "";
+                            err.classList.remove("show");
+                        }
+                    }
+                });
+            }, 300);
 
             form.querySelectorAll("input, select, textarea").forEach(
                 function (el) {
@@ -1572,10 +1675,10 @@
                     el.dispatchEvent(new Event("change", { bubbles: true }));
                 },
             );
+
             if (form._applyEngFilter) form._applyEngFilter();
         }
 
-        // ── 3. Jump to last saved step (and make that tab active) ──
         var idx = 0;
         if (res.current_step) {
             idx = STEP_IDS.indexOf(res.current_step);
@@ -1585,13 +1688,11 @@
             if (idx < 0) idx = 0;
         }
         if (form._wizardShow) {
-            // Let cascade/repeatable change events settle first.
             setTimeout(function () {
                 form._wizardShow(idx);
             }, 200);
         }
 
-        // ── 4. Payment success toast (when redirected back from gateway) ──
         if (res.payment_status === "paid") {
             var params = new URLSearchParams(window.location.search);
             if (params.has("payment_success") || params.has("order_id")) {
@@ -1817,18 +1918,23 @@
         });
     }
 
+    // In applyDraft(), the final setTimeout edu-row pass now just needs to re-sync
+    // No change needed to hydrateEducation — it will overwrite with same values (harmless)
+    // But add this guard so hydrateFiles doesn't re-inject a duplicate hint if Blade already showed the preview:
+
     function hydrateFiles(form, map) {
         Object.keys(map).forEach(function (docType) {
             var file = map[docType];
             if (!file || !file.url) return;
 
-            // ── Show the saved-file preview box if it exists ──
+            // ── Update the saved-file preview box (Blade may have already shown it) ──
             var previewBox = document.getElementById("saved-" + docType);
             if (previewBox) {
                 var nameEl = previewBox.querySelector(
                     '[data-saved-name="' + docType + '"]',
                 );
-                if (nameEl) nameEl.textContent = file.name;
+                if (nameEl && !nameEl.textContent)
+                    nameEl.textContent = file.name; // only if empty
 
                 var linkEl = previewBox.querySelector(
                     '[data-saved-url="' + docType + '"]',
@@ -1845,7 +1951,6 @@
                 previewBox.hidden = false;
             }
 
-            // ── Locate the matching file input ──
             var inp = form.querySelector(
                 'input[type="file"][name="' + cssEsc(docType) + '"]',
             );
@@ -1856,32 +1961,28 @@
                 var euWrap = inp.closest("[data-edu-upload]");
                 if (euWrap) {
                     euWrap.classList.remove("is-locked");
-
-                    // Remember whether this row was required (check BOTH attributes,
-                    // because data-required may not be set yet at hydrate time).
-                    if (
-                        inp.getAttribute("data-required") === "true" ||
-                        inp.required
-                    ) {
-                        euWrap.setAttribute("data-was-required", "1");
-                    }
-
-                    // Always mark that a saved file exists for this row, regardless of
-                    // the required state. sync() uses this to avoid re-requiring an
-                    // upload for rows the server already has a file for.
+                    // data-has-saved already set by Blade — just ensure it's there
                     euWrap.setAttribute("data-has-saved", "1");
+
+                    var eduRow = euWrap.closest("[data-edu-row]");
+                    if (eduRow) {
+                        var anyField = eduRow.querySelector(".edu-field");
+                        if (anyField) {
+                            anyField.dispatchEvent(
+                                new Event("input", { bubbles: true }),
+                            );
+                        }
+                    }
                 }
             }
 
             inp.required = false;
             inp.removeAttribute("required");
-            inp.removeAttribute("data-required"); // <-- this clears it, so the block above must run first
+            inp.removeAttribute("data-required");
 
             var group =
                 inp.closest(".js-upload, [data-edu-upload], .f-group") ||
                 inp.parentElement;
-
-            // Clear any validation error already shown on the group
             if (group) {
                 group.classList.remove("is-invalid");
                 var ge = group.querySelector(".f-error");
@@ -1891,9 +1992,10 @@
                 }
             }
 
-            // ── Inject a hint below the file input (fallback) ──
-            if (!group) return;
+            // Only inject hint if Blade didn't already render a saved-preview box
+            if (previewBox) return; // Blade already handles the display — skip the JS hint
 
+            if (!group) return;
             var oldHint = group.querySelector("[data-saved-file]");
             if (oldHint) oldHint.remove();
 
@@ -1901,13 +2003,14 @@
             hint.className = "f-hint saved-file-hint";
             hint.setAttribute("data-saved-file", docType);
             hint.innerHTML =
-                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px">' +
+                '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>' +
+                '<polyline points="14 2 14 8 20 8"/></svg>' +
                 'Saved: <a href="' +
                 file.url +
                 '" target="_blank" style="color:var(--primary)">' +
                 esc(file.name) +
-                "</a> " +
-                '<span style="opacity:.6">(re-upload to replace)</span>';
+                '</a> <span style="opacity:.6">(re-upload to replace)</span>';
 
             var zone = group.querySelector("[data-zone]");
             if (zone) {

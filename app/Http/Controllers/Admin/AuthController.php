@@ -37,7 +37,7 @@ class AuthController extends Controller
 
         return response()->json([
             'status' => true,
-            'redirect' => route('dashboard')
+            'redirect' => route('applications')
         ]);
     }
 

@@ -1,7 +1,7 @@
 @php
-    // All qualifications are mandatory except "Others".
     $requiredLevels = array_values(array_diff(array_keys($data['education_levels']), ['others']));
 @endphp
+
 <section class="wizard-step" data-step="2" data-step-id="education" hidden>
     <div class="step-head">
         <span class="step-kicker">Educational Qualification</span>
@@ -12,8 +12,7 @@
 
     <div class="callout callout--info">
         <strong>Upload mark sheets per qualification</strong>
-        The mark-sheet upload for a row unlocks only after you fill that row completely (subjects, institution,
-        month/year and marks).
+        The mark-sheet upload for a row unlocks only after you fill that row completely.
     </div>
 
     <div class="edu-table edu-table--6">
@@ -27,11 +26,16 @@
         </div>
 
         @foreach ($data['education_levels'] as $key => $label)
-            @php $req = in_array($key, $requiredLevels); @endphp
+            @php
+                $req      = in_array($key, $requiredLevels);
+                $docType  = 'marksheet_' . $key;
+                $hasSaved = !empty($draft['files'][$docType]['url']);
+                $savedUrl = $draft['files'][$docType]['url']  ?? '#';
+                $savedNm  = $draft['files'][$docType]['name'] ?? '';
+            @endphp
             <div class="edu-row" data-edu-row>
-                <div class="edu-row__label">
-                    {{ $label }}
-                </div>
+                <div class="edu-row__label">{{ $label }}</div>
+
                 <div class="edu-cell" data-cell="Subjects / Specialization">
                     <input type="text" name="education[{{ $key }}][subjects]"
                         class="f-input f-input--sm edu-field">
@@ -48,32 +52,50 @@
                     <input type="text" name="education[{{ $key }}][marks]"
                         class="f-input f-input--sm edu-field">
                 </div>
+
                 <div class="edu-cell edu-cell--file" data-cell="Mark sheet">
-                    <div class="edu-up" data-edu-upload>
+                    {{--
+                        KEY: data-has-saved set SERVER-SIDE so JS never has a
+                        timing window where it sees "no saved file".
+                    --}}
+                    <div class="edu-up" data-edu-upload
+                         @if($hasSaved) data-has-saved="1" @endif>
+
                         <label class="edu-up__label">
-                            <input type="file" name="education[{{ $key }}][marksheet]"
-                                accept=".pdf,.docx,.jpg,.jpeg,.png" class="sr-only edu-up__input">
+                            <input type="file"
+                                name="education[{{ $key }}][marksheet]"
+                                accept=".pdf,.docx,.jpg,.jpeg,.png"
+                                class="sr-only edu-up__input">
                             <span class="edu-up__btn">⬆ Upload</span>
                         </label>
+
                         <span class="edu-up__file" hidden>
                             <span class="edu-up__name"></span>
-                            <button type="button" class="edu-up__remove" aria-label="Remove file">&times;</button>
+                            <button type="button" class="edu-up__remove"
+                                aria-label="Remove file">&times;</button>
                         </span>
 
-                        {{-- Saved marksheet preview (populated by hydrateFiles) --}}
-                        <div id="saved-marksheet_{{ $key }}" hidden class="saved-preview edu-up__saved">
-                            <a data-saved-url="marksheet_{{ $key }}" target="_blank"
-                                data-saved-name="marksheet_{{ $key }}" style="color:var(--primary)"></a>
-                            <button type="button" class="edu-up__saved-remove"
+                        <div id="saved-marksheet_{{ $key }}"
+                             @if(!$hasSaved) hidden @endif
+                             class="saved-preview edu-up__saved">
+                            <a href="{{ $savedUrl }}"
+                               target="_blank"
+                               data-saved-url="marksheet_{{ $key }}"
+                               data-saved-name="marksheet_{{ $key }}"
+                               style="color:var(--primary)">{{ $savedNm }}</a>
+                            <button type="button"
+                                class="edu-up__saved-remove"
                                 data-remove-saved="marksheet_{{ $key }}"
                                 aria-label="Remove saved file">&times;</button>
                         </div>
 
-                        {{-- Flag: set to 1 when the saved file is removed --}}
-                        <input type="hidden" name="education[{{ $key }}][marksheet_removed]" value="0"
+                        <input type="hidden"
+                            name="education[{{ $key }}][marksheet_removed]"
+                            value="0"
                             data-removed-flag="marksheet_{{ $key }}">
                     </div>
-                    <p class="f-error" data-error-for="education[{{ $key }}][marksheet]"></p>
+                    <p class="f-error"
+                       data-error-for="education[{{ $key }}][marksheet]"></p>
                 </div>
             </div>
         @endforeach
