@@ -94,6 +94,12 @@ $sortLink = function ($column, $label) {
                     </span>
                 </a>
             @endforeach
+            <a href="{{ route('application.download') }}" onclick="event.stopPropagation()"
+                title="Download all documents as Excel"
+                class="inline-flex items-center gap-1.5 px-3.5 py-[7px] rounded-[9px] text-[13px] font-semibold no-underline transition
+          bg-gradient-to-br from-gold to-gold2 text-[#1a1408] hover:scale-105">
+                ⬇ Download Submitted Application
+            </a>
         </div>
 
         {{-- Table --}}
@@ -119,7 +125,18 @@ $sortLink = function ($column, $label) {
                     </thead>
                     <tbody>
                         @forelse($applications as $a)
-                            @php $url = route('applications_show', $a); @endphp
+                            @php
+                                $url = route('applications_show', $a);
+                                if ($a->programme_mode == 'FT') {
+                                    $mode = 'Full Time';
+                                } elseif ($a->programme_mode == 'PT') {
+                                    $mode = 'Part Time';
+                                } elseif ($a->programme_mode == 'FT-Startup') {
+                                    $mode = 'Startup Based Ph.D';
+                                } elseif ($a->programme_mode == 'Integrated') {
+                                    $mode = 'Integrated PG + Ph.D';
+                                }
+                            @endphp
                             <tr onclick="window.location='{{ $url }}'"
                                 class="group cursor-pointer transition-colors hover:bg-surface2
                                    [&>td]:px-[18px] [&>td]:py-[15px] [&>td]:border-b [&>td]:border-line [&>td]:align-middle
@@ -145,7 +162,7 @@ $sortLink = function ($column, $label) {
                                 <td>
                                     <span
                                         class="text-[11.5px] font-medium px-2.5 py-1 rounded-lg bg-surface2 border border-line2 text-fmuted">
-                                        {{ $a->programme_mode === 'full_time' ? 'Full Time' : 'Part Time' }}
+                                        {{ $mode }}
                                     </span>
                                 </td>
                                 <td class="text-[13px] font-medium text-fmuted">📎 {{ $a->documents_count }}</td>
@@ -186,7 +203,6 @@ $sortLink = function ($column, $label) {
                     </tbody>
                 </table>
             </div>
-
             <div class="pt-[22px] px-2 [&_a]:text-fmuted [&_span]:text-fmuted [&_a:hover]:text-gold2">
                 {{ $applications->links() }}
             </div>

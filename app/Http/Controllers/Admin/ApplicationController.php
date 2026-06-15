@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\ApplicationExport;
 use App\Http\Controllers\Controller;
 use App\Jobs\GenerateApplicationPdf;
 use App\Models\Application;
@@ -11,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Imagick;
+use Maatwebsite\Excel\Facades\Excel;
 use ZipArchive;
 
 class ApplicationController extends Controller
@@ -138,5 +140,14 @@ class ApplicationController extends Controller
         return response()->view('admin.applications.pdf-loading', [
             'application' => $application,
         ], 202);
+    }
+
+    public function downloadSubmitted(Request $request)
+    {
+        $application = Application::where('status', 'submitted')->get();
+        return Excel::download(
+            new ApplicationExport($application),
+            "submitted_applications.xlsx"
+        );
     }
 }
