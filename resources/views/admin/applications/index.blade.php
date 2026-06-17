@@ -98,7 +98,13 @@ $sortLink = function ($column, $label) {
                 title="Download all documents as Excel"
                 class="inline-flex items-center gap-1.5 px-3.5 py-[7px] rounded-[9px] text-[13px] font-semibold no-underline transition
           bg-gradient-to-br from-gold to-gold2 text-[#1a1408] hover:scale-105">
-                ⬇ Download Submitted Application
+                ⬇ Submitted Application
+            </a>
+            <a href="{{ route('download_draft') }}" onclick="event.stopPropagation()"
+                title="Download all documents as Excel"
+                class="inline-flex items-center gap-1.5 px-3.5 py-[7px] rounded-[9px] text-[13px] font-semibold no-underline transition
+          bg-gradient-to-br from-gold to-gold2 text-[#1a1408] hover:scale-105">
+                ⬇ Draft Application
             </a>
         </div>
 
@@ -127,14 +133,16 @@ $sortLink = function ($column, $label) {
                         @forelse($applications as $a)
                             @php
                                 $url = route('applications_show', $a);
-                                if ($a->programme_mode == 'FT') {
+                                if ($a->programme_mode == 'FT' || $a->programme_mode == 'full_time') {
                                     $mode = 'Full Time';
-                                } elseif ($a->programme_mode == 'PT') {
+                                } elseif ($a->programme_mode == 'PT' || $a->programme_mode == 'part_time') {
                                     $mode = 'Part Time';
                                 } elseif ($a->programme_mode == 'FT-Startup') {
                                     $mode = 'Startup Based Ph.D';
                                 } elseif ($a->programme_mode == 'Integrated') {
                                     $mode = 'Integrated PG + Ph.D';
+                                }else{
+                                    $mode = '';
                                 }
                             @endphp
                             <tr onclick="window.location='{{ $url }}'"

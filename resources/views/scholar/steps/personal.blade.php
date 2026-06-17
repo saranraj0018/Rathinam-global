@@ -89,15 +89,39 @@
 
     <div class="grid gap-5 sm:grid-cols-2">
         <x-select-field name="community" label="Community" required :options="$data['communities']"
-            hint="Self-attested copy required (next field)." />
+            hint="Self-attested copy required (next field)." x-data
+            x-on:change="
+    const val = $event.target.value;
+    const isOthers = val.toLowerCase() === 'others';
+    const wrap = document.getElementById('community-cert-wrap');
+
+    wrap.hidden = !val;
+
+    // Target the actual <input type=file> nested inside x-upload
+    const fileInput = document.querySelector('#community-cert-wrap input[type=file]');
+    if (fileInput) {
+        if (isOthers) {
+            fileInput.removeAttribute('required');
+        } else {
+            @if (!$hasSavedPhoto)
+fileInput.setAttribute('required', '');
+@endif
+        }
+    }
+" />
+
         <div id="community-cert-wrap" hidden>
             <div class="f-group">
-                <label class="f-label">Community Certificate <span class="f-req">*</span></label>
+                <label class="f-label">
+                    Community Certificate
+                    <span class="f-req" data-community-req hidden>*</span>
+                </label>
+
                 @php
                     $hasSavedPhoto = !empty($draft['files']['community_certificate']['url'] ?? null);
                 @endphp
 
-                {{-- Saved file preview (shown by JS when draft has this file) --}}
+                {{-- Saved file preview --}}
                 <div class="saved-file-preview" id="saved-community_certificate" hidden>
                     <div class="saved-file-box">
                         <svg class="saved-file-icon" ...></svg>
@@ -111,7 +135,7 @@
                     <p class="f-hint">Re-upload below to replace the existing file.</p>
                 </div>
 
-                <x-upload name="community_certificate" label="" :image="true" :required="!$hasSavedPhoto" />
+                <x-upload name="community_certificate" label="" :image="true" :required="false" />
             </div>
         </div>
     </div>
@@ -145,7 +169,6 @@
                     </div>
                     <p class="f-hint">Re-upload below to replace the existing file.</p>
                 </div>
-
                 <x-upload name="disability_certificate" label="" />
             </div>
         </div>
@@ -170,3 +193,11 @@
     </label>
     <x-textarea-field name="address_permanent" label="Permanent Address" required rows="3" />
 </section>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const communitySelect = document.querySelector('[name=community]');
+        if (communitySelect) {
+            communitySelect.dispatchEvent(new Event('change'));
+        }
+    });
+</script>

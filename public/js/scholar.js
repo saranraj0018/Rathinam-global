@@ -695,9 +695,47 @@
         var community = document.getElementById("community");
         var ccWrap = document.getElementById("community-cert-wrap");
         if (community && ccWrap) {
-            community.addEventListener("change", function () {
-                ccWrap.hidden = !community.value;
-            });
+            var ccFile = ccWrap.querySelector('input[type="file"]');
+            var ccReqStar = ccWrap.querySelector("[data-community-req]");
+            var ccHasSaved =
+                ccWrap.querySelector('[data-has-saved="1"]') ||
+                (document.getElementById("saved-community_certificate") &&
+                    !document.getElementById("saved-community_certificate")
+                        .hidden);
+
+            function syncCommunityCert() {
+                var val = (community.value || "").trim();
+                var isOthers = val.toLowerCase() === "others";
+
+                ccWrap.hidden = !val;
+
+                var needRequired = !!val && !isOthers && !ccHasSaved;
+
+                // toggle the asterisk
+                if (ccReqStar) ccReqStar.hidden = !needRequired;
+
+                if (!ccFile) return;
+
+                if (needRequired) {
+                    ccFile.setAttribute("required", "");
+                    ccFile.setAttribute("data-required", "true");
+                } else {
+                    ccFile.removeAttribute("required");
+                    ccFile.removeAttribute("data-required");
+                    var grp = ccFile.closest(".js-upload, .f-group");
+                    if (grp) {
+                        grp.classList.remove("is-invalid");
+                        var ge = grp.querySelector(".f-error");
+                        if (ge) {
+                            ge.textContent = "";
+                            ge.classList.remove("show");
+                        }
+                    }
+                }
+            }
+
+            community.addEventListener("change", syncCommunityCert);
+            syncCommunityCert();
         }
 
         var same = document.getElementById("address_same");

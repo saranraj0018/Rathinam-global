@@ -32,7 +32,7 @@ return [
 
     'language_skills' => ['R' => 'Read', 'W' => 'Write', 'S' => 'Speak', 'U' => 'Understand'],
 
-    'communities' => ['OC', 'EWS', 'BC', 'BCM', 'MBC', 'DNC', 'SC', 'SCA', 'ST'],
+    'communities' => ['OC', 'EWS', 'BC', 'BCM', 'MBC', 'DNC', 'SC', 'SCA', 'ST','OTHERS'],
 
     // Education rows (Q: Educational Qualification table)
     'education_levels' => [

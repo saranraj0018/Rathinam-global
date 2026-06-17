@@ -103,7 +103,7 @@ class ScholarApplicationController extends Controller
             'draft'           => $draft,
             'status'          => $status,
             'enclosureStatus' => $enclosureStatus,
-            'savedFiles'      => $savedFiles, 
+            'savedFiles'      => $savedFiles,
         ]);
     }
 
@@ -466,9 +466,19 @@ class ScholarApplicationController extends Controller
         ]);
         $app->save();
 
-        $this->storeFile($app, $r, 'community_certificate', 'community_certificate');
+
         $isAbled = in_array($r->input('differently_abled'), ['Yes', '1', 1, true, 'yes'], true);
 
+        if($d['community'] == 'OTHERS'){
+            $doc = $app->documents()->where('document_type', 'community_certificate')->first();
+            if ($doc) {
+                Storage::disk('public')->delete($doc->file_path);
+                $doc->delete();
+            }
+        }else{
+            $this->storeFile($app, $r, 'community_certificate', 'community_certificate');
+        }
+        
         if ($isAbled) {
             $this->storeFile($app, $r, 'disability_certificate', 'disability_certificate');
         } else {

@@ -19,6 +19,7 @@ class ApplicationExport implements FromArray, WithHeadings
             'Phone',
             'Specialization',
             'Programme Mode',
+            'Created At',
             'Submitted At',
             'Status'
         ];
@@ -35,7 +36,8 @@ class ApplicationExport implements FromArray, WithHeadings
                 $a->specialization,
                 $this->mapMode($a->programme_mode),
                 $a->submitted_at,
-                'Submitted',
+                $a->created_at,
+                $a->status,
             ];
         })->toArray();
     }
@@ -45,6 +47,8 @@ class ApplicationExport implements FromArray, WithHeadings
         return match ($mode) {
             'FT'         => 'Full Time',
             'PT'         => 'Part Time',
+            'full_time'  => 'Full Time',
+            'part_time'  => 'Part Time',
             'FT-Startup' => 'Startup Based Ph.D',
             'Integrated' => 'Integrated PG + Ph.D',
             default      => $mode ?? '',

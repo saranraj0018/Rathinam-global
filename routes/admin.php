@@ -27,5 +27,6 @@ Route::prefix('admin')->group(function () {
         Route::get('/applications/{application}/documents/download-all', [ApplicationController::class, 'downloadAll'])->name('download_all');
         Route::get('/applications/{application}/documents.pdf', [ApplicationController::class, 'downloadPdf'])->name('download_pdf');
         Route::get('/application-download', [ApplicationController::class, 'downloadSubmitted'])->name('application.download');
+        Route::get('/draft-download', [ApplicationController::class, 'downloadDraft'])->name('download_draft');
     });
 });

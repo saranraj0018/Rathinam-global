@@ -150,4 +150,10 @@ class ApplicationController extends Controller
             "submitted_applications.xlsx"
         );
     }
+
+    public function downloadDraft(Request $request)
+    {
+        $application = Application::where('status', 'draft')->get();
+        return Excel::download(new ApplicationExport($application), "draft_applications.xlsx");
+    }
 }
