@@ -142,18 +142,62 @@ class ApplicationController extends Controller
         ], 202);
     }
 
-    public function downloadSubmitted(Request $request)
+    public function downloadApplications(Request $request)
     {
-        $application = Application::where('status', 'submitted')->get();
-        return Excel::download(
-            new ApplicationExport($application),
-            "submitted_applications.xlsx"
-        );
-    }
+        $request->validate([
+            'type' => 'required|in:submitted,draft,qualified',
+            'from_date' => 'nullable|date',
+            'to_date' => 'nullable|date|after_or_equal:from_date',
+        ]);
 
-    public function downloadDraft(Request $request)
-    {
-        $application = Application::where('status', 'draft')->get();
-        return Excel::download(new ApplicationExport($application), "draft_applications.xlsx");
+        $type = $request->type;
+
+        $query = Application::with([
+            'languages:id,application_id,language,can_read,can_write,can_speak',
+            'educations:id,application_id,education_level,subjects,institution,passing_date,marks',
+            'services:id,application_id,designation,institution,from_date,to_date,total_duration',
+            'projects:id,application_id,title,status',
+            'courses:id,application_id,course_name,completed',
+            'aspirations:id,application_id,aspiration',
+        ])->select([
+            'id',
+            'application_no',
+            'full_name',
+            'email',
+            'mobile',
+            'community',
+            'religion',
+            'nationality',
+            'specialization',
+            'programme_mode',
+            'engineering_stream',
+            'status',
+            'submitted_at',
+            'created_at'
+        ]);
+
+        // Filter by type
+        if ($type === 'submitted') {
+            $query->where('status', 'submitted');
+        } elseif ($type === 'draft') {
+            $query->where('status', 'draft');
+        } elseif ($type === 'qualified') {
+            $query->where('eligibility_qualified', 1);
+        }
+
+        // Date range filter (uses created_at; change to submitted_at if preferred)
+        if ($request->filled('from_date')) {
+            $query->whereDate('created_at', '>=', $request->from_date);
+        }
+        if ($request->filled('to_date')) {
+            $query->whereDate('created_at', '<=', $request->to_date);
+        }
+
+        $applications = $query->get();
+
+        return Excel::download(
+            new ApplicationExport($applications),
+            "{$type}_applications.xlsx"
+        );
     }
 }

@@ -31,7 +31,7 @@
     <div class="pay-cta">
         <div class="pay-cta__info">
             <span class="pay-cta__label">Application Fee</span>
-            <span class="pay-cta__amount">₹1</span>
+            <span class="pay-cta__amount">₹2000</span>
         </div>
         @if ($payment_status != 'paid')
         <button type="button" class="btn btn-primary btn-pay" data-pay-now>

@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\ApplicationSubmitted;
 
 class PaymentController extends Controller
 {
@@ -173,8 +175,13 @@ class PaymentController extends Controller
                 $app->completed_steps = $completed;
                 $app->current_step    = 'preview';
                 $app->payment_status  = 'paid';
-                $app->status          = 'draft'; // still draft until final submit
+                $app->status       = 'submitted';
+                $app->submitted_at = now();
                 $app->save();
+
+                Mail::to($app->email)
+                    // ->cc('admissions@rgu.ac.in')   // university copy
+                    ->send(new ApplicationSubmitted($app));
             }
 
             return redirect()->route('scholar.create')->with('payment_success', true);

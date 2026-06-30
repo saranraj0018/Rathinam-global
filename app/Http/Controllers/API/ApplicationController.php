@@ -21,8 +21,9 @@ class ApplicationController extends Controller
             'documents',
             'enclosures'
         ])
-            ->where('payment_status','paid')
-            ->where('status','submitted')
+            ->where('payment_status', 'paid')
+            ->where('status', 'submitted')
+            ->where('eligibility_qualified', 0)
             ->get()
             ->map(function ($application) {
                 return [

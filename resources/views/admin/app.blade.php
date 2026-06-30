@@ -52,9 +52,9 @@
                                 class="w-10 h-10 rounded-full cursor-pointer ring-2 ring-line hover:ring-gold transition">
                             <div id="profileDropdown"
                                 class="hidden absolute right-0 mt-2 w-64 bg-surface rounded-xl shadow-[0_20px_50px_-20px_rgba(0,0,0,.8)] border border-line2 overflow-hidden z-50">
-                                <div class="px-4 py-3 text-sm text-fmuted border-b border-line">
+                                {{-- <div class="px-4 py-3 text-sm text-fmuted border-b border-line">
                                     saranmarkiv18@gmail.com
-                                </div>
+                                </div> --}}
                                 {{-- <a href="#" class="flex items-center gap-3 px-4 py-2 text-ftext hover:bg-surface2">
                                     <i class="fas fa-user-cog text-gold"></i> Settings
                                 </a>

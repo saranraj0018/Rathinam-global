@@ -2,15 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\ApplicationSubmitted;
 use App\Models\Application;
-use App\Models\Payment;
-use App\Models\School;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -348,14 +343,6 @@ class ScholarApplicationController extends Controller
         abort_unless($app, 404);
         abort_unless($app->payment_status === 'paid', 403, 'Payment required before submission.');
 
-        $app->status       = 'submitted';
-        $app->submitted_at = now();
-        $app->save();
-        if (!empty($app->email)) {
-            Mail::to($app->email)
-                // ->cc('admissions@rgu.ac.in')   // university copy
-                ->send(new ApplicationSubmitted($app));
-        }
         return response()->json([
             'success'  => true,
             'message'  => 'Application submitted successfully.',
@@ -469,16 +456,16 @@ class ScholarApplicationController extends Controller
 
         $isAbled = in_array($r->input('differently_abled'), ['Yes', '1', 1, true, 'yes'], true);
 
-        if($d['community'] == 'OTHERS'){
+        if ($d['community'] == 'OTHERS') {
             $doc = $app->documents()->where('document_type', 'community_certificate')->first();
             if ($doc) {
                 Storage::disk('public')->delete($doc->file_path);
                 $doc->delete();
             }
-        }else{
+        } else {
             $this->storeFile($app, $r, 'community_certificate', 'community_certificate');
         }
-        
+
         if ($isAbled) {
             $this->storeFile($app, $r, 'disability_certificate', 'disability_certificate');
         } else {

@@ -94,20 +94,15 @@ $sortLink = function ($column, $label) {
                     </span>
                 </a>
             @endforeach
-            <a href="{{ route('application.download') }}" onclick="event.stopPropagation()"
-                title="Download all documents as Excel"
-                class="inline-flex items-center gap-1.5 px-3.5 py-[7px] rounded-[9px] text-[13px] font-semibold no-underline transition
-          bg-gradient-to-br from-gold to-gold2 text-[#1a1408] hover:scale-105">
-                ⬇ Submitted Application
+            {{-- Trigger Button --}}
+            <a href="javascript:void(0)"
+                onclick="event.stopPropagation(); document.getElementById('downloadModal').classList.remove('hidden')"
+                title="Download applications"
+                class="inline-flex items-center gap-1.5 px-3.5 py-[7px] rounded-[9px] text-[13px] font-semibold no-underline transition bg-gradient-to-br from-gold to-gold2 text-[#1a1408] hover:scale-105">
+                ⬇ Download Applications
             </a>
-            <a href="{{ route('download_draft') }}" onclick="event.stopPropagation()"
-                title="Download all documents as Excel"
-                class="inline-flex items-center gap-1.5 px-3.5 py-[7px] rounded-[9px] text-[13px] font-semibold no-underline transition
-          bg-gradient-to-br from-gold to-gold2 text-[#1a1408] hover:scale-105">
-                ⬇ Draft Application
-            </a>
-        </div>
 
+        </div>
         {{-- Table --}}
         <main class="px-8 pt-3.5 pb-[60px] overflow-x-auto">
             <div
@@ -141,7 +136,7 @@ $sortLink = function ($column, $label) {
                                     $mode = 'Startup Based Ph.D';
                                 } elseif ($a->programme_mode == 'Integrated') {
                                     $mode = 'Integrated PG + Ph.D';
-                                }else{
+                                } else {
                                     $mode = '';
                                 }
                             @endphp
@@ -204,7 +199,8 @@ $sortLink = function ($column, $label) {
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center py-14 text-fmuted">No applications match your filters.
+                                <td colspan="8" class="text-center py-14 text-fmuted">No applications match your
+                                    filters.
                                 </td>
                             </tr>
                         @endforelse
@@ -216,4 +212,88 @@ $sortLink = function ($column, $label) {
             </div>
         </main>
     </div>
+    {{-- Download Modal --}}
+    <div id="downloadModal" class="hidden fixed inset-0 z-[999]">
+        <div onclick="document.getElementById('downloadModal').classList.add('hidden')"
+            class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div class="absolute inset-0 flex items-center justify-center p-4">
+            <div
+                class="relative max-w-[80px] rounded-2xl bg-surface border border-line text-ftext font-sans
+              shadow-[0_1px_0_rgba(255,255,255,.03)_inset,0_30px_80px_-20px_rgba(0,0,0,.8)] overflow-hidden">
+                <div
+                    class="flex items-start justify-between px-6 py-4 border-b border-line bg-gradient-to-br from-gold/10 to-transparent">
+                    <div>
+                        <h3 class="font-display text-[17px] font-semibold m-0 leading-tight">Download Applications</h3>
+                        <p class="text-[12.5px] text-fmuted mt-1">Filter by type and date range</p>
+                    </div>
+                    <button type="button" onclick="document.getElementById('downloadModal').classList.add('hidden')"
+                        class="grid place-items-center w-8 h-8 rounded-lg text-fmuted hover:text-ftext hover:bg-white/[.06] transition shrink-0">
+                        ✕
+                    </button>
+                </div>
+                <form action="{{ route('application.download') }}" method="GET">
+                    <div class="px-6 py-5 space-y-5">
+                        <div>
+                            <label
+                                class="block text-[11px] uppercase tracking-[.08em] font-bold text-[#5f6477] mb-2">Application
+                                Type</label>
+                            <select name="type" required
+                                style="background-color:#15171f; color:#fff;
+      background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 stroke=%22%235f6477%22 stroke-width=%222%22 viewBox=%220 0 24 24%22><path d=%22m6 9 6 6 6-6%22/></svg>');
+      background-repeat:no-repeat; background-position:right 12px center; background-size:16px;"
+                                class="w-full pl-3 pr-10 py-2.5 rounded-lg border border-line text-[13px]
+      focus:outline-none focus:border-gold focus:ring-[3px] focus:ring-gold/10 transition appearance-none cursor-pointer">
+                                <option value="submitted">Submitted</option>
+                                <option value="draft">Draft</option>
+                                <option value="qualified">Qualified</option>
+                            </select>
+                        </div>
+                        {{-- Date range --}}
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label
+                                    class="block text-[11px] uppercase tracking-[.08em] font-bold text-[#5f6477] mb-1.5">From
+                                    Date</label>
+                                <input type="date" name="from_date"
+                                    style="background-color:#15171f; color:#fff; color-scheme:dark;"
+                                    class="w-full px-3 py-2 rounded-lg border border-line text-[13px]
+              focus:outline-none focus:border-gold focus:ring-[3px] focus:ring-gold/10 transition">
+                            </div>
+                            <div>
+                                <label
+                                    class="block text-[11px] uppercase tracking-[.08em] font-bold text-[#5f6477] mb-1.5">To
+                                    Date</label>
+                                <input type="date" name="to_date"
+                                    style="background-color:#15171f; color:#fff; color-scheme:dark;"
+                                    class="w-full px-3 py-2 rounded-lg border border-line text-[13px]
+              focus:outline-none focus:border-gold focus:ring-[3px] focus:ring-gold/10 transition">
+                            </div>
+                        </div>
+
+                        <p class="text-[11.5px] text-fmuted/70 leading-relaxed">Leave the dates empty to download all
+                            records of the selected type.</p>
+                    </div>
+
+                    {{-- Footer --}}
+                    <div class="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-line bg-ink2">
+                        <button type="button" onclick="document.getElementById('downloadModal').classList.add('hidden')"
+                            class="px-4 py-2 rounded-[9px] text-[13px] font-semibold text-fmuted bg-surface2 border border-line2 hover:text-ftext hover:border-gold transition">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-[9px] text-[13px] font-semibold
+                          bg-gradient-to-br from-gold to-gold2 text-[#1a1408] hover:scale-105 transition">
+                            ⬇ Download Excel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') document.getElementById('downloadModal').classList.add('hidden');
+        });
+    </script>
 @endsection
