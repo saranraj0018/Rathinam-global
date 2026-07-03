@@ -9,33 +9,25 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Mail;
 use App\Mail\ApplicationSubmitted;
+use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 class PaymentController extends Controller
 {
-    /**
-     * Renders the Cashfree checkout page for a pending application payment.
-     * Reached via route('payment.application', ['payment_id' => ...]).
-     */
+
     public function paymentApplication(Request $request, string $payment_id)
     {
         $user = Auth::guard('user')->user();
         abort_unless($user, 401);
-
-        // Load the payment and make sure it belongs to this user.
         $payment = Payment::where('payment_id', $payment_id)
             ->where('user_id', $user->id)
             ->firstOrFail();
-
-        // Already paid? Don't re-charge — send back to the application.
         if ($payment->status === 'success') {
             return redirect()
                 ->route('scholar.create')
                 ->with('payment_success', true);
         }
-
-        // Resolve the applicant's phone: application first, then user.
         $app   = Application::find($payment->application_id);
         $phone = $this->normalizePhone(
             ($app->mobile ?? null) ?: ($user->mobile ?? null) ?: ($user->phone ?? null)
@@ -48,8 +40,6 @@ class PaymentController extends Controller
         }
 
         $baseUrl = rtrim(config('services.cashfree.base_url'), '/');
-
-        // 1) Reuse an existing ACTIVE Cashfree order for this id, if any.
         $sessionId = null;
 
         $existing = $this->cashfreeHttp()->get($baseUrl . "/orders/{$payment->payment_id}");
@@ -62,8 +52,6 @@ class PaymentController extends Controller
                 $sessionId = $existingData['payment_session_id'];
             }
         }
-
-        // 2) Otherwise create a fresh Cashfree order.
         if (!$sessionId) {
             $cf = $this->cashfreeHttp()->post($baseUrl . '/orders', [
                 'order_id'       => $payment->payment_id,   // Cashfree's required field name
@@ -179,9 +167,17 @@ class PaymentController extends Controller
                 $app->submitted_at = now();
                 $app->save();
 
-                Mail::to($app->email)
-                    // ->cc('admissions@rgu.ac.in')   // university copy
-                    ->send(new ApplicationSubmitted($app));
+                try {
+                    Mail::to($app->email)
+                        // ->cc('admissions@rgu.ac.in')
+                        ->send(new ApplicationSubmitted($app));
+                } catch (Throwable $e) {
+                    Log::error('Application submission email failed', [
+                        'application_id' => $app->id,
+                        'email'          => $app->email,
+                        'error'          => $e->getMessage(),
+                    ]);
+                }
             }
 
             return redirect()->route('scholar.create')->with('payment_success', true);
