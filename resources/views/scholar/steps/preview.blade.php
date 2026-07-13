@@ -29,12 +29,12 @@
 
     {{-- Payment call-to-action — appears only on the preview step --}}
     <div class="pay-cta">
-        <div class="pay-cta__info">
+        <div class="pay-cta__info mt-5">
             <span class="pay-cta__label">Application Fee</span>
             <span class="pay-cta__amount">₹2000</span>
         </div>
         @if ($payment_status != 'paid')
-        <button type="button" class="btn btn-primary btn-pay" data-pay-now>
+        <button type="button" class="btn btn-primary btn-pay mt-5" data-pay-now>
             Pay Now &amp; Submit →
         </button>
         @endif
