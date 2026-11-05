@@ -44,6 +44,8 @@ Route::middleware(['auth:user', 'declaration.agreed'])->group(function () {
     Route::post('/apply/initiate-payment',  [PaymentController::class, 'initiatePayment'])->name('scholar.payment.initiate');
     Route::get('/payment/application/{payment_id}', [PaymentController::class, 'paymentApplication'])
     ->name('payment.application');
+    Route::match(['get', 'post'], '/payment/form-return', [PaymentController::class, 'formReturn'])
+    ->name('payment.form.return');
     Route::get('/payment/success/{payment_id}', [PaymentController::class, 'paymentSuccess'])
     ->name('payment.success');
     Route::post('/apply/submit',            [ScholarApplicationController::class, 'submit'])->name('scholar.submit');

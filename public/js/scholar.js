@@ -77,6 +77,7 @@
         initLiveErrorClearing(form);
         initWizard(form, steps);
         initPayNow(form);
+        initEduSwitch(form);
         // re-fill from saved draft after wizard is ready
         hydrateDraft(form);
     });
@@ -498,6 +499,67 @@
         form._applyEngFilter = applyFilter;
 
         applyFilter();
+    }
+
+    /* HSC / Diploma share ONE visible row; a dropdown picks which is active. */
+    function initEduSwitch(form) {
+        var rows = form.querySelectorAll("[data-edu-either]");
+        if (!rows.length) return;
+
+        function setActive(level, keepData) {
+            rows.forEach(function (row) {
+                var show = row.getAttribute("data-level") === level;
+                row.hidden = !show;
+                row.style.display = show ? "" : "none";
+                var sel = row.querySelector("[data-edu-switch]");
+                if (sel) sel.value = level;
+
+                if (show) row.setAttribute("data-edu-required", "1");
+                else row.removeAttribute("data-edu-required");
+
+                row.querySelectorAll(".edu-field").forEach(function (f) {
+                    if (show) {
+                        f.required = true;
+                        f.setAttribute("data-required", "true");
+                    } else {
+                        f.required = false;
+                        f.removeAttribute("data-required");
+                        f.classList.remove("is-invalid");
+                        if (!keepData) {
+                            f.value = "";
+                            f.dispatchEvent(new Event("input", { bubbles: true }));
+                        }
+                    }
+                });
+
+                if (!show && !keepData) {
+                    var wrap = row.querySelector("[data-edu-upload]");
+                    var inp = wrap && wrap.querySelector(".edu-up__input");
+                    var flag = wrap && wrap.querySelector("[data-removed-flag]");
+                    if (inp) inp.value = "";
+                    if (wrap && wrap.getAttribute("data-has-saved") === "1" && flag) {
+                        flag.value = "1"; // server deletes the old mark sheet
+                    }
+                    var fb = wrap && wrap.querySelector(".edu-up__file");
+                    if (fb) fb.hidden = true;
+                }
+                row.querySelectorAll(".f-error").forEach(function (e) {
+                    e.textContent = "";
+                    e.classList.remove("show");
+                });
+            });
+        }
+
+        rows.forEach(function (row) {
+            var sel = row.querySelector("[data-edu-switch]");
+            if (sel)
+                sel.addEventListener("change", function () {
+                    setActive(sel.value, false);
+                });
+        });
+
+        form._setEduEither = setActive;
+        setActive("hsc", true);
     }
 
     function initEduUploads(form) {
@@ -1498,9 +1560,12 @@
                         }
                     }
 
-                    // 5. Only fail if: row has data AND neither saved nor fresh file exists
+                    // 5. Fail if: (row has data OR row is a required level)
+                    //    AND neither saved nor fresh file exists
+                    var rowRequired =
+                        !!eduRow && eduRow.getAttribute("data-edu-required") === "1";
                     var needsUpload =
-                        rowHasData && !hasSavedFile && !hasFreshFile;
+                        (rowHasData || rowRequired) && !hasSavedFile && !hasFreshFile;
                     if (needsUpload) {
                         f.setAttribute("data-required", "true");
                         if (euWrap) euWrap.classList.add("is-invalid");
@@ -1889,6 +1954,18 @@
             setField(form, "education[" + level + "][passing]", row.passing);
             setField(form, "education[" + level + "][marks]", row.marks);
         });
+        // HSC / Diploma share one row — show whichever one has saved data.
+        function hasData(r) {
+            return (
+                r &&
+                (r.subjects || r.institution || r.passing || r.marks)
+            );
+        }
+        if (form._setEduEither) {
+            if (hasData(map.diploma) && !hasData(map.hsc))
+                form._setEduEither("diploma", true);
+            else form._setEduEither("hsc", true);
+        }
     }
 
     function hydrateService(form, list) {
@@ -2303,9 +2380,11 @@
         var step = form.querySelector('[data-step-id="education"]');
         if (step) {
             step.querySelectorAll(".edu-row").forEach(function (r) {
-                var label =
-                    (r.querySelector(".edu-row__label") || {}).textContent ||
-                    "";
+                var lblEl = r.querySelector(".edu-row__label");
+                var swSel = lblEl && lblEl.querySelector("select");
+                var label = swSel
+                    ? swSel.options[swSel.selectedIndex].text
+                    : (lblEl || {}).textContent || "";
                 var fields = r.querySelectorAll(".edu-field");
                 var vals = Array.prototype.map.call(fields, function (i) {
                     return i.value.trim();

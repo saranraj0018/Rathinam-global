@@ -137,9 +137,7 @@ class ScholarApplicationController extends Controller
                 'community_certificate'    => ['nullable', 'file', 'max:2048'],
                 'disability_certificate'   => ['nullable', 'file', 'max:2048'],
             ],
-            'education' => [
-                'education' => ['nullable', 'array'],
-            ],
+            'education' => $this->educationRules(),
             'eligibility' => [
                 'eligibility_qualified' => ['nullable'],
                 'eligibility_exam'      => ['nullable', 'string', 'max:255'],
@@ -489,6 +487,26 @@ class ScholarApplicationController extends Controller
                 'can_speak' => in_array('S', $skills, true),
             ]);
         }
+    }
+
+    /** SSLC, Bachelor, Master, M.Phil required; HSC or Diploma (at least one). */
+    private function educationRules(): array
+    {
+        $rules  = ['education' => ['required', 'array']];
+        $fields = ['subjects', 'institution', 'passing', 'marks'];
+
+        foreach (['sslc', 'bachelor', 'master', 'mphil'] as $lvl) {
+            foreach ($fields as $f) {
+                $rules["education.$lvl.$f"] = ['required', 'string', 'max:255'];
+            }
+        }
+        foreach (['hsc' => 'diploma', 'diploma' => 'hsc'] as $lvl => $other) {
+            $otherFields = implode(',', array_map(fn($f) => "education.$other.$f", $fields));
+            foreach ($fields as $f) {
+                $rules["education.$lvl.$f"] = ['required_without_all:' . $otherFields, 'nullable', 'string', 'max:255'];
+            }
+        }
+        return $rules;
     }
 
     private function saveEducation(\App\Models\Application $app, \Illuminate\Http\Request $r, array $d): void

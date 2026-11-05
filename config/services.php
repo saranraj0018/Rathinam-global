@@ -38,6 +38,7 @@ return [
         'app_id' => env('CASHFREE_APP_ID'),
         'secret_key' => env('CASHFREE_SECRET_KEY'),
         'base_url' => env('CASHFREE_BASE_URL'),
+        'payment_form_url' => env('CASHFREE_PAYMENT_FORM_URL', 'https://payments.cashfree.com/forms/phd-application-fee'),
     ],
 
 ];

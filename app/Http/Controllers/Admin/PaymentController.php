@@ -19,10 +19,16 @@ class PaymentController extends Controller
     public function paymentApplication(Request $request, string $payment_id)
     {
         $user = Auth::guard('user')->user();
+        Log::info('[PAY] paymentApplication: start', ['payment_id' => $payment_id, 'user_id' => $user->id ?? null]);
 
         $payment = Payment::where('payment_id', $payment_id)
             ->where('user_id', $user->id)
             ->first();
+        if (!$payment) {
+            Log::error('[PAY] paymentApplication: payment row NOT FOUND for this user', ['payment_id' => $payment_id, 'user_id' => $user->id]);
+            return redirect()->route('scholar.create')->with('payment_failed', 'Payment record not found.');
+        }
+        Log::info('[PAY] paymentApplication: payment row found', ['id' => $payment->id, 'status' => $payment->status, 'amount' => $payment->amount]);
         if ($payment->status === 'success') {
             return redirect()
                 ->route('scholar.create')
@@ -33,7 +39,15 @@ class PaymentController extends Controller
             ($app->mobile ?? null) ?: ($user->mobile ?? null) ?: ($user->phone ?? null)
         );
 
+        Log::info('[PAY] paymentApplication: phone check', [
+            'app_mobile'  => $app->mobile ?? null,
+            'user_mobile' => $user->mobile ?? null,
+            'user_phone'  => $user->phone ?? null,
+            'normalized'  => $phone,
+        ]);
+
         if (!$phone) {
+            Log::error('[PAY] FAILED at phone validation: no valid 10-digit mobile (6-9 start)');
             return redirect()
                 ->route('scholar.create')
                 ->with('payment_failed', 'A valid 10-digit mobile number (starting 6-9) is required before payment. Please update it in your application.');
@@ -45,16 +59,25 @@ class PaymentController extends Controller
         $lock    = Cache::lock($lockKey, 15);
 
         if (!$lock->get()) {
+            Log::warning('[PAY] FAILED at lock: another request holds the order lock', ['lock' => $lockKey]);
             return redirect()
                 ->route('scholar.create')
                 ->with('payment_failed', 'Your payment is already being processed. Please wait a moment and refresh.');
         }
 
         try {
-            $baseUrl   = rtrim(config('services.cashfree.base_url'), '/');
+            $baseUrl   = rtrim((string) config('services.cashfree.base_url'), '/');
+            Log::info('[PAY] paymentApplication: config', [
+                'base_url'      => $baseUrl,
+                'mode'          => $this->cashfreeMode(),
+                'app_id_set'    => !empty(config('services.cashfree.app_id')),
+                'secret_set'    => !empty(config('services.cashfree.secret_key')),
+            ]);
             $sessionId = $this->resolveSession($payment, $app, $user, $phone, $baseUrl);
+            Log::info('[PAY] paymentApplication: resolveSession returned', ['has_session' => !empty($sessionId)]);
 
             if (!$sessionId) {
+                Log::error('[PAY] FAILED: no payment_session_id (see earlier [PAY] lines / Cashfree errors)', ['payment_id' => $payment->payment_id]);
                 return redirect()
                     ->route('scholar.create')
                     ->with('payment_failed', 'Could not start payment. Please try again.');
@@ -69,6 +92,7 @@ class PaymentController extends Controller
                     ->with('payment_success', true);
             }
 
+            Log::info('[PAY] paymentApplication: rendering SDK page', ['order_id' => $payment->payment_id, 'mode' => $this->cashfreeMode()]);
             return view('scholar.payment', [
                 'paymentSessionId' => $sessionId,
                 'orderId'          => $payment->payment_id,
@@ -87,6 +111,11 @@ class PaymentController extends Controller
                 ->where('status', 'draft')
                 ->latest('id')
                 ->first();
+            Log::info('[PAY] initiatePayment: start', ['user_id' => $user->id, 'application_id' => $app->id ?? null]);
+            if (!$app) {
+                Log::error('[PAY] initiatePayment FAILED: no draft application for user', ['user_id' => $user->id]);
+                return response()->json(['success' => false, 'message' => 'No draft application found.'], 422);
+            }
             $app->current_step   = 'payment';
             $app->payment_status = 'payment_pending';
             $app->save();
@@ -99,18 +128,30 @@ class PaymentController extends Controller
             if (!$payment) {
                 $payment = Payment::create([
                     'payment_id'     => 'APPL_' . strtoupper(uniqid()),
-                    'amount'         => 2000,
+                    'amount'         => 1,
                     'application_id' => $app->id,
                     'user_id'        => $user->id,
                     'status'         => 'pending',
                     'type'           => 'application',
                 ]);
             }
-            Log::info($payment->payment_id);
+            Log::info('[PAY] initiatePayment: payment ready, redirecting to SDK page', ['payment_id' => $payment->payment_id]);
+
+            // Hosted Cashfree payment form. Remember which payment this browser
+            // session started so formReturn() can complete it afterwards.
+            session(['pending_form_payment_id' => $payment->payment_id]);
+
+            $query = http_build_query(array_filter([
+                'name'  => $user->name ?? null,
+                'email' => $user->email ?? null,
+                'phone' => $this->normalizePhone($app->mobile ?? ($user->mobile ?? null)),
+            ]));
+            $formUrl = config('services.cashfree.payment_form_url');
+
             return response()->json([
                 'success'    => true,
                 'payment_id' => $payment->payment_id,
-                'redirect'   => route('payment.application', ['payment_id' => $payment->payment_id]),
+                'redirect'   => $formUrl . ($query ? (str_contains($formUrl, '?') ? '&' : '?') . $query : ''),
             ]);
         } catch (\Throwable $e) {
             Log::error('initiatePayment failed', ['msg' => $e->getMessage(), 'line' => $e->getLine()]);
@@ -119,6 +160,30 @@ class PaymentController extends Controller
                 'message' => $e->getMessage(),   // remove in production
             ], 500);
         }
+    }
+
+    /**
+     * Return URL for the hosted Cashfree payment form. Set this URL as the
+     * form's redirect/return URL in the Cashfree dashboard. Completes the
+     * payment started in this session using the existing success flow.
+     */
+    public function formReturn(Request $request)
+    {
+        $user = Auth::guard('user')->user();
+        $paymentId = session('pending_form_payment_id');
+
+        $payment = $paymentId
+            ? Payment::where('payment_id', $paymentId)->where('user_id', $user->id)->first()
+            : null;
+
+        if (!$payment) {
+            return redirect()->route('scholar.create');
+        }
+
+        $this->markPaymentSuccess($payment, $request->input('cf_payment_id'));
+        session()->forget('pending_form_payment_id');
+
+        return redirect()->route('scholar.create')->with('payment_success', true);
     }
 
     /** Called by payment gateway after success (return_url). Best-effort UX path. */
@@ -208,6 +273,11 @@ class PaymentController extends Controller
     private function resolveSession(Payment $payment, ?Application $app, $user, string $phone, string $baseUrl): ?string
     {
         $existing = $this->cashfreeHttp()->get($baseUrl . "/orders/{$payment->payment_id}");
+        Log::info('[PAY] resolveSession: GET order', [
+            'url'    => $baseUrl . "/orders/{$payment->payment_id}",
+            'status' => $existing->status(),
+            'body'   => $existing->json() ?? $existing->body(),
+        ]);
 
         if ($existing->successful()) {
             $data   = $existing->json();
@@ -259,6 +329,11 @@ class PaymentController extends Controller
         ]);
 
         $data = $cf->json();
+        Log::info('[PAY] createOrder: POST /orders response', [
+            'order_id' => $orderId,
+            'http'     => $cf->status(),
+            'body'     => $data ?? $cf->body(),
+        ]);
 
         // Defensive: even after the checks above, a race (two tabs) could still
         // hit order_already_exists. Don't just fail — re-check the order once.

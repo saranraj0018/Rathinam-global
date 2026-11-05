@@ -209,7 +209,7 @@ body { margin: 0; }
 .edu-table__head span { padding: 11px 10px; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--txt-soft); border-right: 1px solid var(--line); }
 .edu-table__head span:last-child { border-right: 0; }
 .edu-row { border-top: 1px solid var(--line); align-items: center; }
-.edu-row__label { padding: 10px; font-weight: 600; font-size: .85rem; color: #334155; background: #fcfcfd; border-right: 1px solid var(--line); align-self: stretch; display: flex; align-items: center; }
+.edu-row__label { padding: 10px; font-weight: 600; font-size: .85rem; color: #334155; background: #fcfcfd; border-right: 1px solid var(--line); align-self: stretch; display: flex; align-items: center; gap: 6px; }
 .edu-cell { padding: 7px 8px; border-right: 1px solid var(--line); }
 .edu-cell:last-child { border-right: 0; }
 

@@ -103,14 +103,15 @@
         if (isOthers) {
             fileInput.removeAttribute('required');
         } else {
-            @if (!$hasSavedPhoto)
-fileInput.setAttribute('required', '');
-@endif
+            if (wrap.dataset.hasSaved !== '1') fileInput.setAttribute('required', '');
         }
     }
 " />
 
-        <div id="community-cert-wrap" hidden>
+        @php
+            $hasSavedPhoto = !empty($draft['files']['community_certificate']['url'] ?? null);
+        @endphp
+        <div id="community-cert-wrap" data-has-saved="{{ $hasSavedPhoto ? '1' : '0' }}" hidden>
             <div class="f-group">
                 <label class="f-label">
                     Community Certificate
