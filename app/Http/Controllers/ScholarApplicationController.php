@@ -81,6 +81,8 @@ class ScholarApplicationController extends Controller
                 'specialization'       => $app->specialization,
                 'specialization_other' => $app->specialization_other,
                 'programme_mode'       => $app->programme_mode,
+                'preferred_supervisor'  => $app->preferred_supervisor,
+                'supervisor_department' => $app->supervisor_department,
                 'enclosures_confirm'   => (bool) $app->enclosures_confirm,
                 'payment_status'       => $app->payment_status ?? 'payment_pending',
                 'enclosures' => $app->enclosures
@@ -114,6 +116,8 @@ class ScholarApplicationController extends Controller
                 'specialization_other' => ['nullable', 'string', 'max:255'],
                 'engineering_stream'   => ['required'],
                 'programme_mode'       => ['nullable', Rule::in(['full_time', 'part_time', 'FT-Startup', 'Integrated', 'FT', 'PT'])],
+                'preferred_supervisor'  => ['nullable', 'string', 'max:255'],
+                'supervisor_department' => ['nullable', 'string', 'max:255'],
             ],
             'personal' => [
                 'full_name'         => ['nullable', 'string', 'max:255'],
@@ -217,6 +221,8 @@ class ScholarApplicationController extends Controller
             'specialization'       => $app->specialization,
             'specialization_other' => $app->specialization_other,
             'programme_mode'       => $app->programme_mode,
+            'preferred_supervisor'  => $app->preferred_supervisor,
+            'supervisor_department' => $app->supervisor_department,
             'full_name'            => $app->full_name,
             'dob'                  => optional($app->dob)->format('Y-m-d'),
             'age'                  => $app->age,
@@ -422,6 +428,8 @@ class ScholarApplicationController extends Controller
             'specialization_other' => $d['specialization_other'] ?? null,
             'engineering_stream' => $d['engineering_stream'],
             'programme_mode'       => $this->normMode($d['programme_mode'] ?? $app->programme_mode),
+            'preferred_supervisor'  => filled($d['preferred_supervisor'] ?? null) ? trim($d['preferred_supervisor']) : null,
+            'supervisor_department' => filled($d['supervisor_department'] ?? null) ? trim($d['supervisor_department']) : null,
         ]);
         $app->save();
 

@@ -110,4 +110,24 @@
             applicants — the Enclosures step adapts automatically.</p>
         <p class="f-error" data-error-for="programme_mode"></p>
     </div>
+
+    {{-- 3. Preferred Supervisor (optional) --}}
+    <div class="f-group mt-2">
+        <span class="f-label">Preferred Supervisor <span class="f-hint" style="font-weight:400">(optional)</span></span>
+        <div class="grid grid-2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+            <div>
+                <label class="f-label" for="preferred_supervisor">Supervisor Name</label>
+                <input type="text" id="preferred_supervisor" name="preferred_supervisor" maxlength="255"
+                    class="f-input" placeholder="e.g. Dr. A. Kumar" autocomplete="off">
+                <p class="f-error" data-error-for="preferred_supervisor"></p>
+            </div>
+            <div>
+                <label class="f-label" for="supervisor_department">Supervisor's Department</label>
+                <input type="text" id="supervisor_department" name="supervisor_department" maxlength="255"
+                    class="f-input" placeholder="e.g. Department of Computer Science" autocomplete="off">
+                <p class="f-error" data-error-for="supervisor_department"></p>
+            </div>
+        </div>
+        <p class="f-hint">Leave blank if you have no preference. Final allocation is made by the university.</p>
+    </div>
 </section>

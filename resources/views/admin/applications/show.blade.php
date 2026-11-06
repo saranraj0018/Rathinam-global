@@ -84,6 +84,8 @@
                 $programme = [
                     'Specialization' => $app->specialization ?? $app->specialization_other ?? '—',
                     'Mode'           => $app->programme_mode === 'full_time' ? 'Full Time' : 'Part Time',
+                    'Preferred Supervisor'  => $app->preferred_supervisor ?: '—',
+                    'Supervisor Department' => $app->supervisor_department ?: '—',
                     'School ID'      => $app->school_id ?? '—',
                     'Discipline ID'  => $app->discipline_id ?? '—',
                     'Eligibility'    => $app->eligibility_qualified ? 'Qualified ('.($app->eligibility_exam ?? '—').')' : 'Not Qualified',
