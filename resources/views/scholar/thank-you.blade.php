@@ -23,7 +23,7 @@
             </p>
 
             <div class="thankyou__actions">
-                <a href="https://rathinam.global/" class="btn btn-primary">Back to Home</a>
+                <a href="https://rathinamglobal.edu.in/" class="btn btn-primary">Back to Home</a>
                 <a href="{{ route('scholar.create') }}" class="btn btn-ghost">Submit another application</a>
             </div>
         </div>

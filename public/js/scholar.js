@@ -4,7 +4,7 @@
  * Flow:
  *   • On load        : GET /apply/draft → re-hydrate form → jump to last saved step.
  *   • Save & Continue: validate step → POST /apply/step/{id} → advance.
- *   • Declaration    : validate → POST /apply/initiate-payment → redirect to Cashfree.
+ *   • Declaration    : validate → POST /apply/initiate-payment → redirect to Razorpay.
  *   • After payment  : server sets payment_status=paid, current_step=preview → redirect back.
  *   • Re-login       : hydrate reads current_step=preview, payment_status=paid → unlocks preview.
  *   • Submit         : only allowed when payment_status=paid → POST /apply/submit.
@@ -1604,6 +1604,29 @@
                 }
             });
 
+        // ── Differently abled = Yes → Disability Certificate is required ──
+        var daYes = stepEl.querySelector(
+            'input[name="differently_abled"][value="Yes"]:checked',
+        );
+        if (daYes) {
+            var dcInput = stepEl.querySelector(
+                'input[type="file"][name="disability_certificate"]',
+            );
+            var dcSaved = document.getElementById("saved-disability_certificate");
+            var dcHasSaved = !!dcSaved && !dcSaved.hidden;
+            var dcHasFresh = !!(dcInput && dcInput.files && dcInput.files.length);
+            if (dcInput && !dcHasSaved && !dcHasFresh) {
+                markInvalid(
+                    stepEl,
+                    dcInput,
+                    "Please upload the Disability Certificate.",
+                );
+                toast("Please upload the Disability Certificate.", "error");
+                ok = false;
+                firstBad = firstBad || dcInput;
+            }
+        }
+
         if (firstBad) {
             var focusEl = firstBad.focus
                 ? firstBad
@@ -2593,7 +2616,7 @@
     }
 
     /* ══════════════════════════════════════════════════════════════════
-       PAY NOW (preview step) → initiatePayment → Cashfree redirect
+       PAY NOW (preview step) → initiatePayment → Razorpay redirect
     ══════════════════════════════════════════════════════════════════ */
     function initPayNow(form) {
         var btn = document.querySelector("[data-pay-now]");

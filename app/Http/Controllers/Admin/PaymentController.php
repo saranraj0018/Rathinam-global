@@ -7,7 +7,6 @@ use App\Models\Application;
 use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use App\Mail\ApplicationSubmitted;
@@ -16,93 +15,11 @@ use Throwable;
 
 class PaymentController extends Controller
 {
-    public function paymentApplication(Request $request, string $payment_id)
-    {
-        $user = Auth::guard('user')->user();
-        Log::info('[PAY] paymentApplication: start', ['payment_id' => $payment_id, 'user_id' => $user->id ?? null]);
-
-        $payment = Payment::where('payment_id', $payment_id)
-            ->where('user_id', $user->id)
-            ->first();
-        if (!$payment) {
-            Log::error('[PAY] paymentApplication: payment row NOT FOUND for this user', ['payment_id' => $payment_id, 'user_id' => $user->id]);
-            return redirect()->route('scholar.create')->with('payment_failed', 'Payment record not found.');
-        }
-        Log::info('[PAY] paymentApplication: payment row found', ['id' => $payment->id, 'status' => $payment->status, 'amount' => $payment->amount]);
-        if ($payment->status === 'success') {
-            return redirect()
-                ->route('scholar.create')
-                ->with('payment_success', true);
-        }
-        $app   = Application::find($payment->application_id);
-        $phone = $this->normalizePhone(
-            ($app->mobile ?? null) ?: ($user->mobile ?? null) ?: ($user->phone ?? null)
-        );
-
-        Log::info('[PAY] paymentApplication: phone check', [
-            'app_mobile'  => $app->mobile ?? null,
-            'user_mobile' => $user->mobile ?? null,
-            'user_phone'  => $user->phone ?? null,
-            'normalized'  => $phone,
-        ]);
-
-        if (!$phone) {
-            Log::error('[PAY] FAILED at phone validation: no valid 10-digit mobile (6-9 start)');
-            return redirect()
-                ->route('scholar.create')
-                ->with('payment_failed', 'A valid 10-digit mobile number (starting 6-9) is required before payment. Please update it in your application.');
-        }
-
-        // Prevent concurrent double-clicks / duplicate tabs from racing
-        // each other into the same order-create call.
-        $lockKey = "cashfree-order-lock:{$payment->id}";
-        $lock    = Cache::lock($lockKey, 15);
-
-        if (!$lock->get()) {
-            Log::warning('[PAY] FAILED at lock: another request holds the order lock', ['lock' => $lockKey]);
-            return redirect()
-                ->route('scholar.create')
-                ->with('payment_failed', 'Your payment is already being processed. Please wait a moment and refresh.');
-        }
-
-        try {
-            $baseUrl   = rtrim((string) config('services.cashfree.base_url'), '/');
-            Log::info('[PAY] paymentApplication: config', [
-                'base_url'      => $baseUrl,
-                'mode'          => $this->cashfreeMode(),
-                'app_id_set'    => !empty(config('services.cashfree.app_id')),
-                'secret_set'    => !empty(config('services.cashfree.secret_key')),
-            ]);
-            $sessionId = $this->resolveSession($payment, $app, $user, $phone, $baseUrl);
-            Log::info('[PAY] paymentApplication: resolveSession returned', ['has_session' => !empty($sessionId)]);
-
-            if (!$sessionId) {
-                Log::error('[PAY] FAILED: no payment_session_id (see earlier [PAY] lines / Cashfree errors)', ['payment_id' => $payment->payment_id]);
-                return redirect()
-                    ->route('scholar.create')
-                    ->with('payment_failed', 'Could not start payment. Please try again.');
-            }
-
-            // Refresh in case the row's payment_id changed inside resolveSession()
-            $payment->refresh();
-
-            if ($payment->status === 'success') {
-                return redirect()
-                    ->route('scholar.create')
-                    ->with('payment_success', true);
-            }
-
-            Log::info('[PAY] paymentApplication: rendering SDK page', ['order_id' => $payment->payment_id, 'mode' => $this->cashfreeMode()]);
-            return view('scholar.payment', [
-                'paymentSessionId' => $sessionId,
-                'orderId'          => $payment->payment_id,
-                'mode'             => $this->cashfreeMode(),
-            ]);
-        } finally {
-            $lock->release();
-        }
-    }
-
+    /**
+     * Step 1 (AJAX from the Pay Now button): make sure a pending Payment row
+     * exists, remember it in the session and hand back the Razorpay Payment
+     * Page URL to redirect to.
+     */
     public function initiatePayment(Request $request)
     {
         try {
@@ -128,30 +45,30 @@ class PaymentController extends Controller
             if (!$payment) {
                 $payment = Payment::create([
                     'payment_id'     => 'APPL_' . strtoupper(uniqid()),
-                    'amount'         => 1,
+                    'amount'         => 1, // keep in sync with the amount set on the Razorpay Payment Page
                     'application_id' => $app->id,
                     'user_id'        => $user->id,
                     'status'         => 'pending',
                     'type'           => 'application',
                 ]);
             }
-            Log::info('[PAY] initiatePayment: payment ready, redirecting to SDK page', ['payment_id' => $payment->payment_id]);
 
-            // Hosted Cashfree payment form. Remember which payment this browser
-            // session started so formReturn() can complete it afterwards.
             session(['pending_form_payment_id' => $payment->payment_id]);
 
-            $query = http_build_query(array_filter([
-                'name'  => $user->name ?? null,
-                'email' => $user->email ?? null,
-                'phone' => $this->normalizePhone($app->mobile ?? ($user->mobile ?? null)),
-            ]));
-            $formUrl = config('services.cashfree.payment_form_url');
+            // Preferred: a per-application Razorpay Payment Link whose callback_url
+            // brings the browser back to us (so the payment can be verified and the
+            // "Payment confirmed" popup shown). Falls back to the static page.
+            $pageUrl = $this->createRazorpayPaymentLink($payment, $app, $user)
+                ?? (string) config('services.razorpay.payment_page_url');
+            Log::info('[PAY] initiatePayment: redirecting to Razorpay', [
+                'payment_id' => $payment->payment_id,
+                'url'        => $pageUrl,
+            ]);
 
             return response()->json([
                 'success'    => true,
                 'payment_id' => $payment->payment_id,
-                'redirect'   => $formUrl . ($query ? (str_contains($formUrl, '?') ? '&' : '?') . $query : ''),
+                'redirect'   => $pageUrl,
             ]);
         } catch (\Throwable $e) {
             Log::error('initiatePayment failed', ['msg' => $e->getMessage(), 'line' => $e->getLine()]);
@@ -163,228 +80,258 @@ class PaymentController extends Controller
     }
 
     /**
-     * Return URL for the hosted Cashfree payment form. Set this URL as the
-     * form's redirect/return URL in the Cashfree dashboard. Completes the
-     * payment started in this session using the existing success flow.
+     * Step 2: the browser comes back from the Razorpay Payment Page.
+     * Set this URL as the page's redirect URL in the Razorpay dashboard.
+     *
+     * Nothing is trusted from the query string except razorpay_payment_id,
+     * and that is verified server-to-server against the Razorpay API
+     * (captured + amount + not already used) before anything is marked paid.
      */
-    public function formReturn(Request $request)
+    public function razorpayReturn(Request $request)
     {
-        $user = Auth::guard('user')->user();
+        $user      = Auth::guard('user')->user();
         $paymentId = session('pending_form_payment_id');
+        Log::info('[PAY] razorpayReturn: start', [
+            'user_id'    => $user->id ?? null,
+            'session_id' => $paymentId,
+            'query'      => $request->only(['razorpay_payment_id', 'razorpay_payment_page_id', 'razorpay_payment_link_id', 'razorpay_payment_link_status']),
+        ]);
+
+        // Payment Link callbacks carry our reference ("APPL_xxx-<ts>"); prefer it.
+        $ref = (string) $request->input('razorpay_payment_link_reference_id', '');
+        if ($ref !== '') {
+            $paymentId = explode('-', $ref)[0];
+        }
 
         $payment = $paymentId
             ? Payment::where('payment_id', $paymentId)->where('user_id', $user->id)->first()
             : null;
 
         if (!$payment) {
+            Log::warning('[PAY] razorpayReturn: no pending payment found');
             return redirect()->route('scholar.create');
         }
 
-        $this->markPaymentSuccess($payment, $request->input('cf_payment_id'));
-        session()->forget('pending_form_payment_id');
+        if ($payment->status === 'success') {
+            session()->forget('pending_form_payment_id');
+            return $this->thankYouRedirect($payment);
+        }
 
-        return redirect()->route('scholar.create')->with('payment_success', true);
+        $rzpPaymentId = (string) ($request->input('razorpay_payment_id') ?? '');
+        if ($rzpPaymentId === '') {
+            // Razorpay did not send an id: we cannot verify. The webhook will
+            // complete the payment if it really succeeded.
+            Log::warning('[PAY] razorpayReturn: no razorpay_payment_id in redirect; waiting for webhook');
+            return redirect()->route('scholar.create')
+                ->with('payment_failed', 'We could not confirm your payment yet. If money was deducted, it will be updated shortly.');
+        }
+
+        // Payment Link callback: verify Razorpay's HMAC signature first.
+        if ($ref !== '' && !$this->validPaymentLinkSignature($request)) {
+            Log::error('[PAY] razorpayReturn: payment link signature invalid');
+            return redirect()->route('scholar.create')
+                ->with('payment_failed', 'Payment could not be verified. Please contact support.');
+        }
+
+        if ($this->verifyRazorpayPayment($payment, $rzpPaymentId)) {
+            $this->markPaymentSuccess($payment, $rzpPaymentId);
+            session()->forget('pending_form_payment_id');
+            return $this->thankYouRedirect($payment);
+        }
+
+        return redirect()->route('scholar.create')
+            ->with('payment_failed', 'Payment could not be verified. Please try again or contact support.');
     }
 
-    /** Called by payment gateway after success (return_url). Best-effort UX path. */
-    public function paymentSuccess(Request $request, string $payment_id)
+    /** Payment done (the application is already submitted): show the Thank You page. */
+    private function thankYouRedirect(Payment $payment)
     {
-        $payment = Payment::where('payment_id', $payment_id)->first();
+        $payment->refresh();
+        $ref = optional(Application::find($payment->application_id))->application_no;
 
-        if ($payment->status === 'success') {
-            return redirect()->route('scholar.create')->with('payment_success', true);
-        }
-
-        $response = $this->cashfreeHttp()
-            ->get(rtrim(config('services.cashfree.base_url'), '/') . "/orders/{$payment_id}/payments");
-        $data = $response->json();
-
-        if (!empty($data[0]) && ($data[0]['payment_status'] ?? null) === 'SUCCESS') {
-            $this->markPaymentSuccess($payment, $data[0]['cf_payment_id'] ?? null);
-            return redirect()->route('scholar.create')->with('payment_success', true);
-        }
-
-        Log::warning('Payment not successful on verify', [
-            'payment_id' => $payment_id,
-            'response'   => $data,
-        ]);
-
-        return redirect()->route('scholar.create')->with('payment_failed', true);
+        return redirect()->route('scholar.thankyou')->with('ref', $ref);
     }
 
     /**
-     * Server-to-server webhook from Cashfree. This is the reliable path —
-     * unlike return_url, it fires even if the user closes the tab or the
-     * redirect never completes, so it should be the source of truth.
+     * Server-to-server webhook from Razorpay (the reliable path).
+     * Dashboard: Settings -> Webhooks -> URL https://<domain>/payment/razorpay-webhook,
+     * events: payment.captured (and payment_page.paid), secret = RAZORPAY_WEBHOOK_SECRET.
      *
-     * Register this URL in your Cashfree dashboard webhook settings and
-     * add CASHFREE_WEBHOOK_SECRET to your .env / config/services.php.
+     * Payment Pages do not carry our payment_id, so the payer is matched by the
+     * e-mail / mobile they typed on the page plus the amount.
      */
     public function webhook(Request $request)
     {
-        $signature = $request->header('x-webhook-signature');
-        $timestamp = $request->header('x-webhook-timestamp');
-        $rawBody   = $request->getContent();
+        $raw       = $request->getContent();
+        $signature = (string) $request->header('X-Razorpay-Signature');
+        $expected  = hash_hmac('sha256', $raw, (string) config('services.razorpay.webhook_secret'));
 
-        $expected = base64_encode(hash_hmac(
-            'sha256',
-            $timestamp . $rawBody,
-            config('services.cashfree.webhook_secret'),
-            true
-        ));
-
-        if (!$signature || !hash_equals($expected, $signature)) {
-            Log::warning('Cashfree webhook signature mismatch', ['payment_id' => $request->input('data.order.order_id')]);
-            return response()->json(['status' => 'invalid signature'], 400);
+        if ($signature === '' || !hash_equals($expected, $signature)) {
+            Log::warning('[PAY] Razorpay webhook signature mismatch');
+            return response()->json(['ok' => false], 400);
         }
 
-        $payload   = $request->json()->all();
-        $eventType = $payload['type'] ?? null;
-        $orderId   = $payload['data']['order']['order_id'] ?? null;
-        $cfPayment = $payload['data']['payment']['cf_payment_id'] ?? null;
-        $status    = $payload['data']['payment']['payment_status'] ?? null;
+        $event  = $request->input('event');
+        $entity = $request->input('payload.payment.entity', []);
+        Log::info('[PAY] Razorpay webhook', ['event' => $event, 'payment' => $entity['id'] ?? null, 'status' => $entity['status'] ?? null]);
 
-        if (!$orderId) {
-            return response()->json(['status' => 'ignored, no order_id'], 200);
+        if (!in_array($event, ['payment.captured', 'payment_page.paid', 'payment_link.paid', 'order.paid'], true)
+            || ($entity['status'] ?? null) !== 'captured') {
+            return response()->json(['ok' => true]); // not interesting; ack so it is not retried
         }
 
-        $payment = Payment::where('payment_id', $orderId)->first();
-
+        $linkRef = (string) $request->input('payload.payment_link.entity.reference_id', '');
+        $payment = $linkRef !== ''
+            ? Payment::where('payment_id', explode('-', $linkRef)[0])->where('status', 'pending')->first()
+            : $this->findPendingPaymentForRazorpay($entity);
         if (!$payment) {
-            Log::warning('Cashfree webhook for unknown payment_id', ['payment_id' => $orderId]);
-            return response()->json(['status' => 'unknown payment_id'], 200);
-        }
-
-        if ($eventType === 'PAYMENT_SUCCESS_WEBHOOK' && $status === 'SUCCESS') {
-            $this->markPaymentSuccess($payment, $cfPayment);
-        }
-
-        // Always 200 so Cashfree doesn't keep retrying a webhook we've already handled.
-        return response()->json(['status' => 'ok'], 200);
-    }
-
-    /* ───────────────────────── helpers ───────────────────────── */
-
-    /**
-     * Resolve a usable payment_session_id for this Payment row.
-     * Self-heals if the previous Cashfree order is stale, paid, or expired,
-     * instead of blindly retrying a create against a burned order_id.
-     */
-    private function resolveSession(Payment $payment, ?Application $app, $user, string $phone, string $baseUrl): ?string
-    {
-        $existing = $this->cashfreeHttp()->get($baseUrl . "/orders/{$payment->payment_id}");
-        Log::info('[PAY] resolveSession: GET order', [
-            'url'    => $baseUrl . "/orders/{$payment->payment_id}",
-            'status' => $existing->status(),
-            'body'   => $existing->json() ?? $existing->body(),
-        ]);
-
-        if ($existing->successful()) {
-            $data   = $existing->json();
-            $status = $data['order_status'] ?? null;
-
-            if ($status === 'ACTIVE' && !empty($data['payment_session_id'])) {
-                return $data['payment_session_id'];
-            }
-
-            if ($status === 'PAID') {
-                // Order succeeded at Cashfree but our webhook/return_url never
-                // landed. Reconcile now instead of erroring out.
-                $paymentsResp = $this->cashfreeHttp()->get($baseUrl . "/orders/{$payment->payment_id}/payments");
-                $paymentsData = $paymentsResp->json();
-                $cfPaymentId  = $paymentsData[0]['cf_payment_id'] ?? null;
-
-                $this->markPaymentSuccess($payment, $cfPaymentId);
-                return null; // caller checks $payment->status === 'success' after refresh
-            }
-
-            // EXPIRED / TERMINATED / anything else: this order_id can never
-            // be reused. Mint a fresh one rather than retrying the same ID.
-            return $this->createOrder($payment, $user, $phone, $baseUrl, true);
-        }
-
-        // 404 — no order exists yet under this ID, safe to create for the first time.
-        return $this->createOrder($payment, $user, $phone, $baseUrl, false);
-    }
-
-    private function createOrder(Payment $payment, $user, string $phone, string $baseUrl, bool $mintNewId): ?string
-    {
-        $orderId = $mintNewId
-            ? $payment->payment_id . '_R' . now()->timestamp
-            : $payment->payment_id;
-
-        $cf = $this->cashfreeHttp()->post($baseUrl . '/orders', [
-            'order_id'       => $orderId,
-            'order_amount'   => (float) $payment->amount,
-            'order_currency' => 'INR',
-            'customer_details' => [
-                'customer_id'    => (string) $user->id,
-                'customer_name'  => $user->name ?? 'Applicant',
-                'customer_email' => $user->email ?? 'noemail@example.com',
-                'customer_phone' => $phone,
-            ],
-            'order_meta' => [
-                'return_url' => route('payment.success', ['payment_id' => $orderId]),
-            ],
-        ]);
-
-        $data = $cf->json();
-        Log::info('[PAY] createOrder: POST /orders response', [
-            'order_id' => $orderId,
-            'http'     => $cf->status(),
-            'body'     => $data ?? $cf->body(),
-        ]);
-
-        // Defensive: even after the checks above, a race (two tabs) could still
-        // hit order_already_exists. Don't just fail — re-check the order once.
-        if (!$cf->successful() && ($data['code'] ?? null) === 'order_already_exists') {
-            Log::warning('Cashfree order_already_exists on create, re-checking order state', [
-                'order_id' => $orderId,
+            Log::warning('[PAY] Razorpay webhook: no matching pending payment', [
+                'email'   => $entity['email'] ?? null,
+                'contact' => $entity['contact'] ?? null,
+                'amount'  => $entity['amount'] ?? null,
             ]);
+            return response()->json(['ok' => true]);
+        }
 
-            $recheck = $this->cashfreeHttp()->get($baseUrl . "/orders/{$orderId}");
-            if ($recheck->successful()) {
-                $recheckData = $recheck->json();
-                if (($recheckData['order_status'] ?? null) === 'ACTIVE' && !empty($recheckData['payment_session_id'])) {
-                    if ($mintNewId) {
-                        $payment->update(['payment_id' => $orderId]);
+        if ($this->razorpayIdAlreadyUsed($entity['id'] ?? '', $payment->id)) {
+            return response()->json(['ok' => true]);
+        }
+
+        $this->markPaymentSuccess($payment, $entity['id'] ?? null);
+        return response()->json(['ok' => true]);
+    }
+
+    /** Create a Razorpay Payment Link for this payment; null if keys missing or the call fails. */
+    private function createRazorpayPaymentLink(Payment $payment, Application $app, $user): ?string
+    {
+        $keyId  = (string) config('services.razorpay.key_id');
+        $secret = (string) config('services.razorpay.key_secret');
+        if ($keyId === '' || $secret === '') {
+            Log::warning('[PAY] RAZORPAY_KEY_ID/SECRET not set; using static payment page (no redirect back / no verification)');
+            return null;
+        }
+
+        $customer = array_filter([
+            'name'    => $app->full_name ?? ($user->name ?? null),
+            'email'   => $app->email ?? ($user->email ?? null),
+            'contact' => $this->normalizePhone($app->mobile ?? ($user->phone ?? null)),
+        ]);
+
+        $resp = Http::withBasicAuth($keyId, $secret)->acceptJson()->post('https://api.razorpay.com/v1/payment_links', [
+            'amount'          => (int) round(((float) $payment->amount) * 100),
+            'currency'        => 'INR',
+            'accept_partial'  => false,
+            'reference_id'    => $payment->payment_id . '-' . time(),
+            'description'     => 'Ph.D Application Fee',
+            'customer'        => $customer,
+            'notify'          => ['sms' => false, 'email' => false],
+            'reminder_enable' => false,
+            'callback_url'    => route('payment.razorpay.return'),
+            'callback_method' => 'get',
+        ]);
+        $data = $resp->json();
+        Log::info('[PAY] createRazorpayPaymentLink', ['http' => $resp->status(), 'body' => $data ?? $resp->body()]);
+
+        return ($resp->successful() && !empty($data['short_url'])) ? $data['short_url'] : null;
+    }
+
+    /** Razorpay signs: payment_link_id|reference_id|status|payment_id with the key secret. */
+    private function validPaymentLinkSignature(Request $request): bool
+    {
+        $payload = implode('|', [
+            (string) $request->input('razorpay_payment_link_id'),
+            (string) $request->input('razorpay_payment_link_reference_id'),
+            (string) $request->input('razorpay_payment_link_status'),
+            (string) $request->input('razorpay_payment_id'),
+        ]);
+        $expected = hash_hmac('sha256', $payload, (string) config('services.razorpay.key_secret'));
+
+        return hash_equals($expected, (string) $request->input('razorpay_signature'))
+            && $request->input('razorpay_payment_link_status') === 'paid';
+    }
+
+    /** GET /v1/payments/{id} and confirm it really paid this application's fee. */
+    private function verifyRazorpayPayment(Payment $payment, string $rzpPaymentId): bool
+    {
+        if ($this->razorpayIdAlreadyUsed($rzpPaymentId, $payment->id)) {
+            Log::warning('[PAY] razorpay payment id already used by another payment', ['rzp' => $rzpPaymentId]);
+            return false;
+        }
+
+        $resp = Http::withBasicAuth(
+            (string) config('services.razorpay.key_id'),
+            (string) config('services.razorpay.key_secret')
+        )->acceptJson()->get('https://api.razorpay.com/v1/payments/' . urlencode($rzpPaymentId));
+
+        $data = $resp->json();
+        Log::info('[PAY] verifyRazorpayPayment', [
+            'http' => $resp->status(),
+            'body' => $data ?? $resp->body(),
+        ]);
+
+        if (!$resp->successful() || !is_array($data)) {
+            return false;
+        }
+
+        $expectedPaise = (int) round(((float) $payment->amount) * 100);
+
+        $ok = ($data['status'] ?? null) === 'captured'
+            && ($data['currency'] ?? 'INR') === 'INR'
+            && (int) ($data['amount'] ?? 0) >= $expectedPaise;
+
+        if (!$ok) {
+            Log::error('[PAY] verifyRazorpayPayment FAILED checks', [
+                'status'        => $data['status'] ?? null,
+                'amount'        => $data['amount'] ?? null,
+                'expected_paise' => $expectedPaise,
+            ]);
+        }
+        return $ok;
+    }
+
+    private function razorpayIdAlreadyUsed(string $rzpPaymentId, int $exceptPaymentRowId): bool
+    {
+        if ($rzpPaymentId === '') {
+            return false;
+        }
+        return Payment::where('transaction_id', $rzpPaymentId)
+            ->where('id', '!=', $exceptPaymentRowId)
+            ->exists();
+    }
+
+    private function findPendingPaymentForRazorpay(array $entity): ?Payment
+    {
+        $email   = strtolower(trim((string) ($entity['email'] ?? '')));
+        $contact = substr(preg_replace('/\D+/', '', (string) ($entity['contact'] ?? '')), -10);
+        $paise   = (int) ($entity['amount'] ?? 0);
+
+        $query = Payment::where('status', 'pending')
+            ->whereHas('application', function ($q) use ($email, $contact) {
+                $q->where(function ($w) use ($email, $contact) {
+                    if ($email !== '') {
+                        $w->orWhereRaw('LOWER(email) = ?', [$email]);
                     }
-                    return $recheckData['payment_session_id'];
-                }
+                    if (strlen($contact) === 10) {
+                        $w->orWhere('mobile', 'like', '%' . $contact);
+                    }
+                });
+            })
+            ->latest('id');
+
+        foreach ($query->get() as $p) {
+            if ($paise >= (int) round(((float) $p->amount) * 100)) {
+                return $p;
             }
-
-            Log::error('Cashfree order create failed after retry', [
-                'payment_id' => $orderId,
-                'status'     => $cf->status(),
-                'response'   => $data,
-            ]);
-            return null;
         }
-
-        if (!$cf->successful() || empty($data['payment_session_id'])) {
-            Log::error('Cashfree order create failed', [
-                'payment_id' => $orderId,
-                'status'     => $cf->status(),
-                'response'   => $data,
-            ]);
-            return null;
-        }
-
-        if ($mintNewId) {
-            // Keep the Payment row's identifier in sync with the order_id
-            // that's actually live at Cashfree, so future lookups match.
-            $payment->update(['payment_id' => $orderId]);
-        }
-
-        return $data['payment_session_id'];
+        return null;
     }
 
     /**
      * Single source of truth for marking a payment + application as paid.
-     * Used by paymentSuccess(), the webhook, and self-heal in resolveSession()
-     * so all three paths stay identical and idempotent.
+     * Used by the return handler and the webhook so both paths stay identical
+     * and idempotent.
      */
-    private function markPaymentSuccess(Payment $payment, ?string $cfPaymentId): void
+    private function markPaymentSuccess(Payment $payment, ?string $gatewayPaymentId): void
     {
         if ($payment->status === 'success') {
             return; // already handled — keep this idempotent for webhook retries
@@ -392,7 +339,7 @@ class PaymentController extends Controller
 
         $payment->update([
             'status'         => 'success',
-            'transaction_id' => $cfPaymentId,
+            'transaction_id' => $gatewayPaymentId,
         ]);
 
         $app = Application::find($payment->application_id);
@@ -424,29 +371,7 @@ class PaymentController extends Controller
         }
     }
 
-    private function cashfreeHttp()
-    {
-        $http = Http::withHeaders([
-            'x-client-id'     => config('services.cashfree.app_id'),
-            'x-client-secret' => config('services.cashfree.secret_key'),
-            'x-api-version'   => '2022-09-01',
-            'Content-Type'    => 'application/json',
-            'Accept'          => 'application/json',
-        ]);
-
-        if (app()->environment('local')) {
-            $http = $http->withoutVerifying();
-        }
-
-        return $http;
-    }
-
-    private function cashfreeMode(): string
-    {
-        $base = (string) config('services.cashfree.base_url');
-        return str_contains($base, 'sandbox') ? 'sandbox' : 'production';
-    }
-
+    /** 10-digit Indian mobile (6-9 start) or null. */
     private function normalizePhone(?string $phone): ?string
     {
         $digits = preg_replace('/\D+/', '', (string) $phone);

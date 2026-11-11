@@ -21,6 +21,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'guest' => \App\Http\Middleware\Guest::class,
             'declaration.agreed' => \App\Http\Middleware\EnsureDeclarationAgreed::class,
         ]);
+
+        // Razorpay calls these without a CSRF token.
+        $middleware->validateCsrfTokens(except: [
+            'payment/razorpay-webhook',
+            'payment/razorpay-return',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

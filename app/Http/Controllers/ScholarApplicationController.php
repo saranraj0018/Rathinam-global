@@ -465,6 +465,12 @@ class ScholarApplicationController extends Controller
         }
 
         if ($isAbled) {
+            $hasSavedDisability = $app->documents()->where('document_type', 'disability_certificate')->exists();
+            if (!$r->hasFile('disability_certificate') && !$hasSavedDisability) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'disability_certificate' => 'Please upload the Disability Certificate.',
+                ]);
+            }
             $this->storeFile($app, $r, 'disability_certificate', 'disability_certificate');
         } else {
             $doc = $app->documents()->where('document_type', 'disability_certificate')->first();
@@ -489,13 +495,13 @@ class ScholarApplicationController extends Controller
         }
     }
 
-    /** SSLC, Bachelor, Master, M.Phil required; HSC or Diploma (at least one). */
+    /** SSLC, Bachelor, Master required (M.Phil optional); HSC or Diploma (at least one). */
     private function educationRules(): array
     {
         $rules  = ['education' => ['required', 'array']];
         $fields = ['subjects', 'institution', 'passing', 'marks'];
 
-        foreach (['sslc', 'bachelor', 'master', 'mphil'] as $lvl) {
+        foreach (['sslc', 'bachelor', 'master'] as $lvl) {
             foreach ($fields as $f) {
                 $rules["education.$lvl.$f"] = ['required', 'string', 'max:255'];
             }

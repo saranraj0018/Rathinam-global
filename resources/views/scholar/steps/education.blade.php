@@ -1,6 +1,6 @@
 @php
     // Always required (every field + mark sheet)
-    $requiredLevels = ['sslc', 'bachelor', 'master', 'mphil'];
+    $requiredLevels = ['sslc', 'bachelor', 'master'];
     // HSC / Diploma: at least ONE of the two must be completed
     $eitherLevels   = ['hsc', 'diploma'];
 @endphp
@@ -15,7 +15,7 @@
 
     <div class="callout callout--info">
         <strong>Upload mark sheets per qualification</strong>
-        The mark-sheet upload for a row unlocks only after you fill that row. SSLC, Bachelor's, Master's and M.Phil. are required; for HSC / Diploma, pick one from the dropdown and fill it.
+        The mark-sheet upload for a row unlocks only after you fill that row. SSLC, Bachelor's and Master's are required (M.Phil. is optional); for HSC / Diploma, pick one from the dropdown and fill it.
     </div>
 
     <div class="edu-table edu-table--6">

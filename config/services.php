@@ -34,11 +34,11 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
-    'cashfree' => [
-        'app_id' => env('CASHFREE_APP_ID'),
-        'secret_key' => env('CASHFREE_SECRET_KEY'),
-        'base_url' => env('CASHFREE_BASE_URL'),
-        'payment_form_url' => env('CASHFREE_PAYMENT_FORM_URL', 'https://payments.cashfree.com/forms/phd-application-fee'),
+    'razorpay' => [
+        'key_id'           => env('RAZORPAY_KEY_ID'),
+        'key_secret'       => env('RAZORPAY_KEY_SECRET'),
+        'webhook_secret'   => env('RAZORPAY_WEBHOOK_SECRET'),
+        'payment_page_url' => env('RAZORPAY_PAYMENT_PAGE_URL', 'https://rzp.io/rzp/VIJtpjO6'),
     ],
 
 ];

@@ -17,4 +17,9 @@ class Payment extends Model
         'type',
         'transaction_id',
     ];
+
+    public function application(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Application::class);
+    }
 }

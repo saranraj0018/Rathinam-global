@@ -42,12 +42,11 @@ Route::middleware(['auth:user', 'declaration.agreed'])->group(function () {
     Route::get('/apply/draft',              [ScholarApplicationController::class, 'draft'])->name('scholar.draft');
     Route::post('/apply/step/{step}',       [ScholarApplicationController::class, 'saveStep'])->name('scholar.step');
     Route::post('/apply/initiate-payment',  [PaymentController::class, 'initiatePayment'])->name('scholar.payment.initiate');
-    Route::get('/payment/application/{payment_id}', [PaymentController::class, 'paymentApplication'])
-    ->name('payment.application');
-    Route::match(['get', 'post'], '/payment/form-return', [PaymentController::class, 'formReturn'])
-    ->name('payment.form.return');
-    Route::get('/payment/success/{payment_id}', [PaymentController::class, 'paymentSuccess'])
-    ->name('payment.success');
+    Route::match(['get', 'post'], '/payment/razorpay-return', [PaymentController::class, 'razorpayReturn'])
+    ->name('payment.razorpay.return');
     Route::post('/apply/submit',            [ScholarApplicationController::class, 'submit'])->name('scholar.submit');
     Route::get('/apply/thankyou',           [ScholarApplicationController::class, 'thankyou'])->name('scholar.thankyou');
 });
+
+// Razorpay server-to-server webhook (no session / CSRF; verified by HMAC signature)
+Route::post('/payment/razorpay-webhook', [PaymentController::class, 'webhook'])->name('payment.razorpay.webhook');
