@@ -2251,6 +2251,8 @@
                 item("Discipline", val("discipline")),
                 item("Specialization", spec),
                 item("Programme Mode", radioLabel("programme_mode")),
+                item("Preferred Supervisor", val("preferred_supervisor")),
+                item("Supervisor's Department", val("supervisor_department")),
             ]),
         );
 

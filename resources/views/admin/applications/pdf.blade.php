@@ -90,6 +90,10 @@
             <td><span class="lbl">Mode</span><span class="v">{{ $app->programme_mode === 'full_time' ? 'Full Time' : 'Part Time' }}</span></td>
         </tr>
         <tr>
+            <td><span class="lbl">Preferred Supervisor</span><span class="v">{{ $app->preferred_supervisor ?: '—' }}</span></td>
+            <td><span class="lbl">Supervisor Department</span><span class="v">{{ $app->supervisor_department ?: '—' }}</span></td>
+        </tr>
+        <tr>
             <td><span class="lbl">Eligibility</span><span class="v">{{ $app->eligibility_qualified ? 'Qualified (' . ($app->eligibility_exam ?? '—') . ')' : 'Not Qualified' }}</span></td>
             <td><span class="lbl">Submitted</span><span class="v">{{ optional($app->submitted_at)->format('d M Y, h:i A') ?? 'Not submitted' }}</span></td>
         </tr>
