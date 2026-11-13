@@ -38,7 +38,13 @@ return [
         'key_id'           => env('RAZORPAY_KEY_ID'),
         'key_secret'       => env('RAZORPAY_KEY_SECRET'),
         'webhook_secret'   => env('RAZORPAY_WEBHOOK_SECRET'),
-        'payment_page_url' => env('RAZORPAY_PAYMENT_PAGE_URL', 'https://rzp.io/rzp/VIJtpjO6'),
+        'payment_page_url' => env('RAZORPAY_PAYMENT_PAGE_URL', 'https://rzp.io/rzp/6u9w38Mz'),
+        // 'page' = always send users to the Payment Page above (amount set in Razorpay Dashboard).
+        // 'link' = create a per-application Payment Link via the API (amount = application_fee).
+        'checkout_mode'    => env('RAZORPAY_CHECKOUT_MODE', 'page'),
+        // Application fee in rupees. Used for the Payment Link the code creates,
+        // so it must match the fee on your Razorpay Payment Page.
+        'application_fee'  => (float) env('RAZORPAY_APPLICATION_FEE', 1),
     ],
 
 ];

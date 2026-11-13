@@ -2659,6 +2659,7 @@
                     });
                 })
                 .then(function (r) {
+                    console.log("[PAY] initiate-payment response:", r.data);
                     if (r.ok && r.data && r.data.success && r.data.redirect) {
                         window.location.href = r.data.redirect;
                         return;

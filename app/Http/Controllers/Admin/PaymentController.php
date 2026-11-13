@@ -20,8 +20,38 @@ class PaymentController extends Controller
      * exists, remember it in the session and hand back the Razorpay Payment
      * Page URL to redirect to.
      */
+    /** Bump when this file changes, so you can confirm the live server has the new version. */
+    private const CODE_VERSION = 'pay-2026-11-13-v2';
+
+    /** Non-secret snapshot of what the server is actually using (shown in logs and /payment/debug). */
+    private function debugSnapshot(): array
+    {
+        $keyId = (string) config('services.razorpay.key_id');
+        return [
+            'code_version'      => self::CODE_VERSION,
+            'checkout_mode'     => config('services.razorpay.checkout_mode', '(missing - old config/services.php)'),
+            'payment_page_url'  => config('services.razorpay.payment_page_url'),
+            'application_fee'   => config('services.razorpay.application_fee', '(missing - old config/services.php)'),
+            'key_mode'          => str_starts_with($keyId, 'rzp_live_') ? 'live' : (str_starts_with($keyId, 'rzp_test_') ? 'test' : 'not set'),
+            'secret_set'        => config('services.razorpay.key_secret') ? 'yes' : 'no',
+            'webhook_secret_set'=> config('services.razorpay.webhook_secret') ? 'yes' : 'no',
+            'config_cached'     => app()->configurationIsCached() ? 'YES - clear it after changing .env/config' : 'no',
+            'controller_file'   => __FILE__,
+            'base_path'         => base_path(),
+            'app_url'           => config('app.url'),
+            'return_url'        => route('payment.razorpay.return'),
+        ];
+    }
+
+    /** GET /payment/debug (logged-in users): shows the snapshot above as JSON. */
+    public function debug()
+    {
+        return response()->json($this->debugSnapshot(), 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    }
+
     public function initiatePayment(Request $request)
     {
+        Log::info('[PAY] initiatePayment: config', $this->debugSnapshot());
         try {
             $user = Auth::guard('user')->user();
             $app = Application::where('user_id', $user->id)
@@ -42,10 +72,18 @@ class PaymentController extends Controller
                 ->latest()
                 ->first();
 
+            $fee = (float) config('services.razorpay.application_fee');
+
+            if ($payment && (float) $payment->amount !== $fee) {
+                // Pending row created before the fee changed: bring it up to date.
+                $payment->amount = $fee;
+                $payment->save();
+            }
+
             if (!$payment) {
                 $payment = Payment::create([
                     'payment_id'     => 'APPL_' . strtoupper(uniqid()),
-                    'amount'         => 1, // keep in sync with the amount set on the Razorpay Payment Page
+                    'amount'         => $fee, // RAZORPAY_APPLICATION_FEE in .env
                     'application_id' => $app->id,
                     'user_id'        => $user->id,
                     'status'         => 'pending',
@@ -58,8 +96,10 @@ class PaymentController extends Controller
             // Preferred: a per-application Razorpay Payment Link whose callback_url
             // brings the browser back to us (so the payment can be verified and the
             // "Payment confirmed" popup shown). Falls back to the static page.
-            $pageUrl = $this->createRazorpayPaymentLink($payment, $app, $user)
-                ?? (string) config('services.razorpay.payment_page_url');
+            $pageUrl = config('services.razorpay.checkout_mode') === 'link'
+                ? $this->createRazorpayPaymentLink($payment, $app, $user)
+                : null;
+            $pageUrl = $pageUrl ?? (string) config('services.razorpay.payment_page_url');
             Log::info('[PAY] initiatePayment: redirecting to Razorpay', [
                 'payment_id' => $payment->payment_id,
                 'url'        => $pageUrl,
@@ -69,6 +109,11 @@ class PaymentController extends Controller
                 'success'    => true,
                 'payment_id' => $payment->payment_id,
                 'redirect'   => $pageUrl,
+                'debug'      => [
+                    'code_version'  => self::CODE_VERSION,
+                    'checkout_mode' => config('services.razorpay.checkout_mode'),
+                    'amount'        => $payment->amount,
+                ],
             ]);
         } catch (\Throwable $e) {
             Log::error('initiatePayment failed', ['msg' => $e->getMessage(), 'line' => $e->getLine()]);
@@ -386,3 +431,5 @@ class PaymentController extends Controller
         return preg_match('/^[6-9]\d{9}$/', $digits) ? $digits : null;
     }
 }
+
+

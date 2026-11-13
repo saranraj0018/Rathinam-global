@@ -42,6 +42,7 @@ Route::middleware(['auth:user', 'declaration.agreed'])->group(function () {
     Route::get('/apply/draft',              [ScholarApplicationController::class, 'draft'])->name('scholar.draft');
     Route::post('/apply/step/{step}',       [ScholarApplicationController::class, 'saveStep'])->name('scholar.step');
     Route::post('/apply/initiate-payment',  [PaymentController::class, 'initiatePayment'])->name('scholar.payment.initiate');
+    Route::get('/payment/debug',            [PaymentController::class, 'debug'])->name('payment.debug');
     Route::match(['get', 'post'], '/payment/razorpay-return', [PaymentController::class, 'razorpayReturn'])
     ->name('payment.razorpay.return');
     Route::post('/apply/submit',            [ScholarApplicationController::class, 'submit'])->name('scholar.submit');
