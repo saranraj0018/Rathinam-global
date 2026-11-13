@@ -656,26 +656,49 @@ class PaymentController extends Controller
             return; // already handled — keep this idempotent for webhook retries
         }
 
-        $payment->update([
-            'status'         => 'success',
-            'transaction_id' => $gatewayPaymentId,
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($payment, $gatewayPaymentId, &$app) {
+                $payment->update([
+                    'status'         => 'success',
+                    'transaction_id' => $gatewayPaymentId,
+                ]);
+
+                $app = Application::find($payment->application_id);
+                if (!$app) {
+                    return;
+                }
+
+                $completed = $app->completed_steps ?? [];
+                if (!is_array($completed)) {
+                    $completed = (array) json_decode((string) $completed, true);
+                }
+                if (!in_array('payment', $completed)) {
+                    $completed[] = 'payment';
+                }
+                $app->completed_steps = $completed;
+                $app->current_step    = 'preview';
+                $app->payment_status  = 'paid';
+                $app->status          = 'submitted';
+                $app->submitted_at    = now();
+                $app->save();
+            });
+        } catch (Throwable $e) {
+            $this->log()->error('[PAY] markPaymentSuccess FAILED (nothing saved)', [
+                'payment_id'          => $payment->payment_id,
+                'razorpay_payment_id' => $gatewayPaymentId,
+                'error'               => $e->getMessage(),
+                'file'                => $e->getFile() . ':' . $e->getLine(),
+            ]);
+            throw $e;
+        }
+        $this->log()->info('[PAY] markPaymentSuccess: saved', [
+            'payment_id' => $payment->payment_id, 'razorpay_payment_id' => $gatewayPaymentId,
+            'application_id' => $payment->application_id,
         ]);
 
-        $app = Application::find($payment->application_id);
-        if (!$app) {
+        if (empty($app)) {
             return;
         }
-
-        $completed = $app->completed_steps ?? [];
-        if (!in_array('payment', $completed)) {
-            $completed[] = 'payment';
-        }
-        $app->completed_steps = $completed;
-        $app->current_step    = 'preview';
-        $app->payment_status  = 'paid';
-        $app->status          = 'submitted';
-        $app->submitted_at    = now();
-        $app->save();
 
         try {
             Mail::to($app->email)
