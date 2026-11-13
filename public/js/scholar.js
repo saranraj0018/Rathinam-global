@@ -2637,8 +2637,153 @@
             if (el) el.textContent = msg || "";
         }
 
+        function resetBtn(msg) {
+            if (msg) setError(msg);
+            btn.disabled = false;
+            btn.textContent = "Pay Now & Submit →";
+        }
+
+        function postJson(url, body) {
+            return fetch(url, {
+                method: body ? "POST" : "GET",
+                credentials: "same-origin",
+                headers: {
+                    "X-CSRF-TOKEN": csrf(),
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+                body: body ? JSON.stringify(body) : undefined,
+            }).then(function (res) {
+                return res.json().then(function (data) {
+                    return { ok: res.ok, data: data };
+                });
+            });
+        }
+
+        function loadCheckoutJs() {
+            return new Promise(function (resolve, reject) {
+                if (window.Razorpay) return resolve();
+                var s = document.createElement("script");
+                s.src = "https://checkout.razorpay.com/v1/checkout.js";
+                s.onload = resolve;
+                s.onerror = function () {
+                    reject(new Error("Could not load Razorpay. Check your connection."));
+                };
+                document.head.appendChild(s);
+            });
+        }
+
+        // Ask the server (which asks Razorpay by order_id) whether the order was paid.
+        function checkStatus(d) {
+            btn.textContent = "Checking payment…";
+            return postJson(d.status_url).then(function (r) {
+                console.log("[PAY] status:", r.data);
+                if (r.data && r.data.status === "success" && r.data.redirect) {
+                    window.location.href = r.data.redirect;
+                } else {
+                    resetBtn("Payment not completed. You can try again.");
+                }
+            });
+        }
+
+        function openRazorpayCheckout(d) {
+            loadCheckoutJs()
+                .then(function () {
+                    var rzp = new window.Razorpay({
+                        key: d.key,
+                        order_id: d.order_id,
+                        amount: d.amount,
+                        currency: d.currency,
+                        name: d.name,
+                        description: d.description,
+                        prefill: d.prefill || {},
+                        notes: { payment_id: d.payment_id },
+                        handler: function (resp) {
+                            // resp = { razorpay_payment_id, razorpay_order_id, razorpay_signature }
+                            console.log("[PAY] checkout success:", resp);
+                            btn.textContent = "Verifying payment…";
+                            postJson(d.verify_url, resp)
+                                .then(function (r) {
+                                    console.log("[PAY] verify:", r.data);
+                                    if (r.ok && r.data && r.data.success && r.data.redirect) {
+                                        window.location.href = r.data.redirect;
+                                    } else {
+                                        // Signature/verify failed: fall back to an order status check.
+                                        return checkStatus(d);
+                                    }
+                                })
+                                .catch(function () {
+                                    return checkStatus(d);
+                                });
+                        },
+                        modal: {
+                            ondismiss: function () {
+                                // Popup closed: the user may still have paid (e.g. UPI app), so check.
+                                checkStatus(d);
+                            },
+                        },
+                    });
+                    rzp.on("payment.failed", function (resp) {
+                        console.warn("[PAY] payment.failed:", resp && resp.error);
+                        setError(
+                            (resp && resp.error && resp.error.description) ||
+                                "Payment failed. Please try again.",
+                        );
+                    });
+                    rzp.open();
+                })
+                .catch(function (err) {
+                    resetBtn(err.message);
+                });
+        }
+
+        // Payment Page flow: we cannot rely on Razorpay redirecting back, so keep asking
+        // our server (which asks Razorpay) until the payment shows up as captured.
+        var pollTimer = null;
+        function startPolling(statusUrl) {
+            var started = Date.now();
+            btn.disabled = true;
+            btn.textContent = "Waiting for payment…";
+            setError("Complete the payment in the Razorpay tab. This page will continue automatically.");
+            function tick() {
+                postJson(statusUrl)
+                    .then(function (r) {
+                        console.log("[PAY] poll status:", r.data);
+                        if (r.data && r.data.status === "success" && r.data.redirect) {
+                            clearInterval(pollTimer);
+                            window.location.href = r.data.redirect;
+                        } else if (Date.now() - started > 20 * 60 * 1000) {
+                            clearInterval(pollTimer);
+                            resetBtn("We have not received your payment yet. If money was deducted, refresh this page in a few minutes.");
+                        }
+                    })
+                    .catch(function () {});
+            }
+            clearInterval(pollTimer);
+            pollTimer = setInterval(tick, 5000);
+            window.addEventListener("focus", tick); // check immediately when user returns to this tab
+            tick();
+        }
+
+        // On page load: if the applicant already paid (e.g. came back from Razorpay), move on.
+        if (window.AppRoutes && window.AppRoutes.paymentStatus) {
+            postJson(window.AppRoutes.paymentStatus)
+                .then(function (r) {
+                    console.log("[PAY] status on load:", r.data);
+                    if (r.data && r.data.status === "success" && r.data.redirect) {
+                        window.location.href = r.data.redirect;
+                    }
+                })
+                .catch(function () {});
+        }
+
         btn.addEventListener("click", function () {
             if (btn.disabled) return;
+            // Open the tab now (inside the click) so the popup blocker allows it.
+            var payWin = btn.getAttribute("data-checkout-mode") === "page"
+                ? window.open("about:blank", "_blank")
+                : null;
             btn.disabled = true;
             var original = btn.textContent;
             btn.textContent = "Starting payment…";
@@ -2660,8 +2805,18 @@
                 })
                 .then(function (r) {
                     console.log("[PAY] initiate-payment response:", r.data);
+                    if (r.ok && r.data && r.data.success && r.data.mode === "checkout") {
+                        if (payWin) payWin.close();
+                        openRazorpayCheckout(r.data);
+                        return;
+                    }
                     if (r.ok && r.data && r.data.success && r.data.redirect) {
-                        window.location.href = r.data.redirect;
+                        if (payWin && !payWin.closed) {
+                            payWin.location.href = r.data.redirect; // Razorpay in new tab
+                            startPolling(r.data.status_url);       // this tab waits for it
+                        } else {
+                            window.location.href = r.data.redirect; // popup blocked: same tab
+                        }
                         return;
                     }
                     throw new Error(
@@ -2670,6 +2825,7 @@
                     );
                 })
                 .catch(function (err) {
+                    if (payWin && !payWin.closed) payWin.close();
                     setError(
                         err.message ||
                             "Payment could not be started. Please try again.",

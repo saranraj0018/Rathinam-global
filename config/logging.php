@@ -73,6 +73,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // All Razorpay / payment activity: storage/logs/payment-YYYY-MM-DD.log
+        'payment' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/payment.log'),
+            'level' => 'debug',
+            'days' => 60,
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

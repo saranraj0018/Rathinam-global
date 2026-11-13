@@ -38,7 +38,8 @@
         window.AppRoutes = {
             draft: "{{ route('scholar.draft') }}",
             step: "{{ route('scholar.step', ['step' => ':step']) }}",
-            initiatePayment: "{{ route('scholar.payment.initiate') }}"
+            initiatePayment: "{{ route('scholar.payment.initiate') }}",
+            paymentStatus: @auth('user') "{{ route('payment.status') }}" @else null @endauth
         };
     </script>
     <script src="{{ asset('js/toast.js') }}?v={{ time() }}"></script>

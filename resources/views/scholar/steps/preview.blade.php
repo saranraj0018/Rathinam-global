@@ -34,7 +34,7 @@
             <span class="pay-cta__amount">₹1</span>
         </div>
         @if ($payment_status != 'paid')
-        <button type="button" class="btn btn-primary btn-pay mt-5" data-pay-now>
+        <button type="button" class="btn btn-primary btn-pay mt-5" data-pay-now data-checkout-mode="{{ config('services.razorpay.checkout_mode') }}">
             Pay Now &amp; Submit →
         </button>
         @endif
