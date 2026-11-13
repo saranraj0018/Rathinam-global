@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class RegisterController extends Controller
@@ -44,11 +45,12 @@ class RegisterController extends Controller
             'success'      => true,
             'message'      => 'Login successful',
             'showDeclaration' => true,
+            'csrf_token'      => csrf_token(), // session was regenerated on login → new token
         ]);
     }
 
     public function confirmDeclaration(Request $request)
-    {
+    {Log::info('ggfd',$request->all());
         $request->validate(['agreed' => 'required|in:1']);
         $user = Auth::guard('user')->user();
 
