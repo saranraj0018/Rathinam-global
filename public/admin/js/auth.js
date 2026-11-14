@@ -116,6 +116,11 @@ $(document).on("submit", "#loginForm", function (e) {
         formData,
         "POST",
         function (res) {
+            if (res.csrf_token) {
+                // Login regenerates the session + CSRF token; refresh the stale one
+                CSRF_TOKEN = res.csrf_token;
+                $('meta[name="csrf-token"]').attr("content", res.csrf_token);
+            }
             if (res.success && res.showDeclaration) {
                 openDeclaration();
             } else if (res.success) {

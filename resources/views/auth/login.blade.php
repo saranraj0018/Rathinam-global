@@ -203,7 +203,7 @@
 @push('scripts')
     <script>
         const DECLARATION_CONFIRM_URL = "{{ route('auth.declaration.confirm') }}";
-        const CSRF_TOKEN = "{{ csrf_token() }}";
+        let CSRF_TOKEN = "{{ csrf_token() }}";
     </script>
-    <script src="{{ asset('admin/js/auth.js') }}?v=1.0.1"></script>
+    <script src="{{ asset('admin/js/auth.js') }}?v=1.0.2"></script>
 @endpush
