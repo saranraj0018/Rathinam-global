@@ -309,7 +309,9 @@ public function razorpayReturn(Request $request)
      * Expected reference:
      * APPL_XXXXXXXXXXXXXXXXXXXXXXXX-1794569307
      */
-    if (!preg_match('/^(APPL_[A-F0-9]{24})-\d+$/i', $ref, $matches)) {
+    // Reference = "<payments.payment_id>-<timestamp>". Accept any payment_id
+    // (e.g. APPL_2D5C...FD8 or manually created ones like APPL_RECOVER_8).
+    if (!preg_match('/^(APPL_[A-Za-z0-9_]+)-\d+$/', $ref, $matches)) {
 
         $this->log()->error('[PAY] Invalid payment reference format', [
             'reference_id' => $ref,
