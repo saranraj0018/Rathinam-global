@@ -38,7 +38,7 @@ class PaymentController extends Controller
             'config_cached'     => app()->configurationIsCached() ? 'YES - clear it after changing .env/config' : 'no',
             'controller_file'   => __FILE__,
             'base_path'         => base_path(),
-            'app_url'           => config('app.url'),
+            'app_url'           => 'https://rathinamglobal.edu.in/research/registration',
             'return_url'        => route('payment.razorpay.return'),
         ];
     }
@@ -55,119 +55,192 @@ class PaymentController extends Controller
         return response()->json($this->debugSnapshot(), 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
 
-    public function initiatePayment(Request $request)
-    {
-        $this->log()->info('[PAY] initiatePayment: config', $this->debugSnapshot());
-        try {
-            $user = Auth::guard('user')->user();
-            $app = Application::where('user_id', $user->id)
-                ->where('status', 'draft')
-                ->latest('id')
-                ->first();
-            $this->log()->info('[PAY] initiatePayment: start', ['user_id' => $user->id, 'application_id' => $app->id ?? null]);
-            if (!$app) {
-                $this->log()->error('[PAY] initiatePayment FAILED: no draft application for user', ['user_id' => $user->id]);
-                return response()->json(['success' => false, 'message' => 'No draft application found.'], 422);
-            }
-            $app->current_step   = 'payment';
-            $app->payment_status = 'payment_pending';
-            $app->save();
+public function initiatePayment(Request $request)
+{
+    $this->log()->info('[PAY] initiatePayment: config', $this->debugSnapshot());
 
-            $payment = Payment::where('application_id', $app->id)
-                ->where('status', 'pending')
-                ->latest()
-                ->first();
+    try {
+        $user = Auth::guard('user')->user();
 
-            $fee = (float) config('services.razorpay.application_fee');
-
-            if ($payment && (float) $payment->amount !== $fee) {
-                // Pending row created before the fee changed: bring it up to date.
-                $payment->amount = $fee;
-                $payment->save();
-            }
-
-            if (!$payment) {
-                $payment = Payment::create([
-                    'payment_id'     => 'APPL_' . strtoupper(uniqid()),
-                    'amount'         => $fee, // RAZORPAY_APPLICATION_FEE in .env
-                    'application_id' => $app->id,
-                    'user_id'        => $user->id,
-                    'status'         => 'pending',
-                    'type'           => 'application',
-                ]);
-            }
-
-            session(['pending_form_payment_id' => $payment->payment_id]);
-            $this->log()->info('[PAY] initiatePayment: payment row', [
-                'payment'     => $payment->toArray(),
-                'application' => $app->only(['id', 'application_no', 'status', 'payment_status', 'current_step']),
-                'ip'          => $request->ip(),
-                'user_agent'  => $request->userAgent(),
-            ]);
-
-            // Standard Checkout: create (or reuse) a Razorpay Order, store its id on the
-            // payment row, and let the browser open Razorpay Checkout on our own page.
-            if (config('services.razorpay.checkout_mode') === 'checkout') {
-                $orderId = $this->ensureRazorpayOrder($payment);
-                if (!$orderId) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Could not start payment with Razorpay. Please try again in a moment.',
-                    ], 502);
-                }
-
-                return response()->json([
-                    'success'     => true,
-                    'mode'        => 'checkout',
-                    'payment_id'  => $payment->payment_id,
-                    'key'         => (string) config('services.razorpay.key_id'),
-                    'order_id'    => $orderId,
-                    'amount'      => (int) round(((float) $payment->amount) * 100),
-                    'currency'    => 'INR',
-                    'name'        => 'Rathinam Group of Institutions',
-                    'description' => 'Ph.D Application Fee',
-                    'prefill'     => array_filter([
-                        'name'    => $app->full_name ?? ($user->name ?? null),
-                        'email'   => $app->email ?? ($user->email ?? null),
-                        'contact' => $this->normalizePhone($app->mobile ?? ($user->phone ?? null)),
-                    ]),
-                    'verify_url'  => route('payment.verify'),
-                    'status_url'  => route('payment.status'),
-                ]);
-            }
-
-            // Preferred: a per-application Razorpay Payment Link whose callback_url
-            // brings the browser back to us (so the payment can be verified and the
-            // "Payment confirmed" popup shown). Falls back to the static page.
-            $pageUrl = config('services.razorpay.checkout_mode') === 'link'
-                ? $this->createRazorpayPaymentLink($payment, $app, $user)
-                : null;
-            $pageUrl = $pageUrl ?? (string) config('services.razorpay.payment_page_url');
-            $this->log()->info('[PAY] initiatePayment: redirecting to Razorpay', [
-                'payment_id' => $payment->payment_id,
-                'url'        => $pageUrl,
-            ]);
-
-            return response()->json([
-                'success'    => true,
-                'mode'       => config('services.razorpay.checkout_mode') === 'link' ? 'link' : 'page',
-                'payment_id' => $payment->payment_id,
-                'redirect'   => $pageUrl,
-                'status_url' => route('payment.status'),
-                'debug'      => [
-                    'code_version'  => self::CODE_VERSION,
-                    'checkout_mode' => config('services.razorpay.checkout_mode'),
-                    'amount'        => $payment->amount,
-                ],
-            ]);
-        } catch (\Throwable $e) {
-            $this->log()->error('initiatePayment failed', ['msg' => $e->getMessage(), 'line' => $e->getLine()]);
+        if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),   // remove in production
-            ], 500);
+                'message' => 'Please login again.',
+            ], 401);
         }
+
+        // Get only the authenticated user's draft application.
+        $app = Application::where('user_id', $user->id)
+            ->where('status', 'draft')
+            ->latest('id')
+            ->first();
+
+        if (!$app) {
+            $this->log()->error('[PAY] No draft application', [
+                'user_id' => $user->id,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No draft application found.',
+            ], 422);
+        }
+
+        $fee = (float) config('services.razorpay.application_fee');
+
+        if ($fee <= 0) {
+            throw new \RuntimeException('Invalid Razorpay application fee.');
+        }
+
+        $app->current_step = 'payment';
+        $app->payment_status = 'payment_pending';
+        $app->save();
+
+        /*
+         * Find this application's pending payment.
+         * Never reuse another payment belonging to another user.
+         */
+        $payment = Payment::where('application_id', $app->id)
+            ->where('user_id', $user->id)
+            ->where('type', 'application')
+            ->where('status', 'pending')
+            ->latest('id')
+            ->first();
+
+        if (!$payment) {
+            $payment = new Payment();
+
+            $payment->application_id = $app->id;
+            $payment->user_id = $user->id;
+            $payment->type = 'application';
+            $payment->status = 'pending';
+        }
+
+        /*
+         * IMPORTANT:
+         * Generate payment_id even when an old pending row is reused.
+         */
+        if (empty($payment->payment_id)) {
+            $payment->payment_id = 'APPL_' . strtoupper(bin2hex(random_bytes(12)));
+        }
+
+        $payment->amount = $fee;
+        $payment->user_id = $user->id;
+        $payment->application_id = $app->id;
+        $payment->type = 'application';
+        $payment->save();
+
+        session([
+            'pending_form_payment_id' => $payment->payment_id,
+        ]);
+
+        $this->log()->info('[PAY] Payment row prepared', [
+            'payment_row_id' => $payment->id,
+            'payment_id' => $payment->payment_id,
+            'user_id' => $payment->user_id,
+            'application_id' => $payment->application_id,
+            'amount' => $payment->amount,
+            'status' => $payment->status,
+        ]);
+
+        /*
+         * STANDARD RAZORPAY CHECKOUT
+         */
+        if (config('services.razorpay.checkout_mode') === 'checkout') {
+
+            $orderId = $this->ensureRazorpayOrder($payment);
+
+            if (!$orderId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Could not start Razorpay payment. Please try again.',
+                ], 502);
+            }
+
+            return response()->json([
+                'success' => true,
+                'mode' => 'checkout',
+                'payment_id' => $payment->payment_id,
+                'key' => (string) config('services.razorpay.key_id'),
+                'order_id' => $orderId,
+                'amount' => (int) round($payment->amount * 100),
+                'currency' => 'INR',
+                'name' => 'Rathinam Group of Institutions',
+                'description' => 'Ph.D Application Fee',
+
+                'prefill' => array_filter([
+                    'name' => $app->full_name ?? $user->name ?? null,
+                    'email' => $app->email ?? $user->email ?? null,
+                    'contact' => $this->normalizePhone(
+                        $app->mobile ?? $user->phone ?? null
+                    ),
+                ]),
+
+                'verify_url' => route('payment.verify'),
+                'status_url' => route('payment.status'),
+            ]);
+        }
+
+        /*
+         * DYNAMIC RAZORPAY PAYMENT LINK
+         */
+        if (config('services.razorpay.checkout_mode') === 'link') {
+
+            $pageUrl = $this->createRazorpayPaymentLink(
+                $payment,
+                $app,
+                $user
+            );
+
+            if (!$pageUrl) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Could not create Razorpay payment link.',
+                ], 502);
+            }
+
+            $mode = 'link';
+
+        } else {
+
+            // Static Payment Page fallback.
+            $pageUrl = (string) config('services.razorpay.payment_page_url');
+            $mode = 'page';
+        }
+
+        if (empty($pageUrl)) {
+            throw new \RuntimeException('Razorpay payment URL is empty.');
+        }
+
+        $this->log()->info('[PAY] Redirecting to Razorpay', [
+            'payment_id' => $payment->payment_id,
+            'application_id' => $app->id,
+            'mode' => $mode,
+            'url' => $pageUrl,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'mode' => $mode,
+            'payment_id' => $payment->payment_id,
+            'redirect' => $pageUrl,
+            'status_url' => route('payment.status'),
+        ]);
+
+    } catch (\Throwable $e) {
+
+        $this->log()->error('[PAY] initiatePayment failed', [
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Unable to initiate payment. Please try again.',
+        ], 500);
     }
+}
 
     /**
      * Step 2: the browser comes back from the Razorpay Payment Page.
@@ -177,67 +250,131 @@ class PaymentController extends Controller
      * and that is verified server-to-server against the Razorpay API
      * (captured + amount + not already used) before anything is marked paid.
      */
-    public function razorpayReturn(Request $request)
-    {
-        $user      = Auth::guard('user')->user();
-        $paymentId = session('pending_form_payment_id');
-        $this->log()->info('[PAY] razorpayReturn: start', [
-            'user_id'    => $user->id ?? null,
-            'session_id' => $paymentId,
-            'method'     => $request->method(),
-            'full_url'   => $request->fullUrl(),
-            'all_input'  => $request->all(),
-        ]);
+public function razorpayReturn(Request $request)
+{
+    $ref = (string) $request->input(
+        'razorpay_payment_link_reference_id',
+        ''
+    );
 
-        // Payment Link callbacks carry our reference ("APPL_xxx-<ts>"); prefer it.
-        $ref = (string) $request->input('razorpay_payment_link_reference_id', '');
-        if ($ref !== '') {
-            $paymentId = explode('-', $ref)[0];
-        }
+    $rzpPaymentId = (string) $request->input(
+        'razorpay_payment_id',
+        ''
+    );
 
-        $payment = $paymentId
-            ? Payment::where('payment_id', $paymentId)->where('user_id', $user->id)->first()
-            : null;
+    $linkId = (string) $request->input(
+        'razorpay_payment_link_id',
+        ''
+    );
 
-        if (!$payment) {
-            $this->log()->warning('[PAY] razorpayReturn: no pending payment found');
-            return redirect()->route('scholar.create');
-        }
+    $linkStatus = (string) $request->input(
+        'razorpay_payment_link_status',
+        ''
+    );
 
-        if ($payment->status === 'success') {
-            session()->forget('pending_form_payment_id');
-            return $this->thankYouRedirect($payment);
-        }
+    $this->log()->info('[PAY] razorpayReturn started', [
+        'user_id' => Auth::guard('user')->id(),
+        'reference_id' => $ref,
+        'razorpay_payment_id' => $rzpPaymentId,
+        'payment_link_id' => $linkId,
+        'payment_link_status' => $linkStatus,
+    ]);
 
-        $rzpPaymentId = (string) ($request->input('razorpay_payment_id') ?? '');
-        if ($rzpPaymentId === '') {
-            // Razorpay did not send an id: we cannot verify. The webhook will
-            // complete the payment if it really succeeded.
-            $this->log()->warning('[PAY] razorpayReturn: no razorpay_payment_id in redirect; waiting for webhook');
-            return redirect()->route('scholar.create')
-                ->with('payment_failed', 'We could not confirm your payment yet. If money was deducted, it will be updated shortly.');
-        }
-
-        // Payment Link callback: verify Razorpay's HMAC signature first.
-        if ($ref !== '' && !$this->validPaymentLinkSignature($request)) {
-            $this->log()->error('[PAY] razorpayReturn: payment link signature invalid');
-            return redirect()->route('scholar.create')
-                ->with('payment_failed', 'Payment could not be verified. Please contact support.');
-        }
-
-        if ($this->verifyRazorpayPayment($payment, $rzpPaymentId)) {
-            if (!$payment->order_id && $request->filled('razorpay_order_id')) {
-                $payment->update(['order_id' => (string) $request->input('razorpay_order_id')]);
-            }
-            $this->markPaymentSuccess($payment, $rzpPaymentId);
-            session()->forget('pending_form_payment_id');
-            return $this->thankYouRedirect($payment);
-        }
+    // Validate callback parameters.
+    if (
+        $ref === '' ||
+        $rzpPaymentId === '' ||
+        $linkId === '' ||
+        $linkStatus !== 'paid'
+    ) {
+        $this->log()->warning('[PAY] Incomplete Razorpay callback');
 
         return redirect()->route('scholar.create')
-            ->with('payment_failed', 'Payment could not be verified. Please try again or contact support.');
+            ->with('payment_failed', 'Payment confirmation is incomplete. Please contact support if money was deducted.');
     }
 
+    // Verify Payment Link signature.
+    if (!$this->validPaymentLinkSignature($request)) {
+
+        $this->log()->error('[PAY] Invalid Payment Link signature', [
+            'reference_id' => $ref,
+            'payment_link_id' => $linkId,
+        ]);
+
+        return redirect()->route('scholar.create')
+            ->with('payment_failed', 'Payment signature verification failed.');
+    }
+
+    /*
+     * Expected reference:
+     * APPL_XXXXXXXXXXXXXXXXXXXXXXXX-1794569307
+     */
+    if (!preg_match('/^(APPL_[A-F0-9]{24})-\d+$/i', $ref, $matches)) {
+
+        $this->log()->error('[PAY] Invalid payment reference format', [
+            'reference_id' => $ref,
+        ]);
+
+        return redirect()->route('scholar.create')
+            ->with('payment_failed', 'Payment reference could not be matched. Please contact support.');
+    }
+
+    $internalPaymentId = $matches[1];
+
+    // Find payment using our unique internal payment reference.
+    $payment = Payment::where('payment_id', $internalPaymentId)
+        ->where('type', 'application')
+        ->first();
+
+    if (!$payment) {
+
+        $this->log()->error('[PAY] Payment database record not found', [
+            'internal_payment_id' => $internalPaymentId,
+            'reference_id' => $ref,
+        ]);
+
+        return redirect()->route('scholar.create')
+            ->with('payment_failed', 'Payment record not found. Please contact support.');
+    }
+
+    if ($payment->status === 'success') {
+        session()->forget('pending_form_payment_id');
+
+        return $this->thankYouRedirect($payment);
+    }
+
+    // Verify payment directly with Razorpay API.
+    if (!$this->verifyRazorpayPayment($payment, $rzpPaymentId)) {
+
+        $this->log()->error('[PAY] Razorpay payment verification failed', [
+            'payment_row_id' => $payment->id,
+            'internal_payment_id' => $payment->payment_id,
+            'razorpay_payment_id' => $rzpPaymentId,
+        ]);
+
+        return redirect()->route('scholar.create')
+            ->with('payment_failed', 'Payment could not be verified. Please contact support.');
+    }
+
+    // Save verified transaction.
+    $payment->transaction_id = $rzpPaymentId;
+    $payment->order_id = $linkId;
+    $payment->save();
+
+    // Mark payment and application as successful.
+    $this->markPaymentSuccess($payment, $rzpPaymentId);
+
+    session()->forget('pending_form_payment_id');
+
+    $this->log()->info('[PAY] Payment successfully completed', [
+        'payment_row_id' => $payment->id,
+        'payment_id' => $payment->payment_id,
+        'application_id' => $payment->application_id,
+        'transaction_id' => $rzpPaymentId,
+    ]);
+
+    return $this->thankYouRedirect($payment);
+}
     /** Payment done (the application is already submitted): show the Thank You page. */
     private function thankYouRedirect(Payment $payment)
     {

@@ -41,8 +41,8 @@ return [
         'payment_page_url' => env('RAZORPAY_PAYMENT_PAGE_URL', 'https://rzp.io/rzp/6u9w38Mz'),
         // 'checkout' = Razorpay Order + Checkout popup, verified by order_id/payment_id/signature
         // 'page'     = static Payment Page   'link' = per-application Payment Link
-        'checkout_mode'    => env('RAZORPAY_CHECKOUT_MODE', 'checkout'),
-        'application_fee'  => (float) env('RAZORPAY_APPLICATION_FEE', 5),
+        'checkout_mode'    => env('RAZORPAY_CHECKOUT_MODE', 'link'),
+        'application_fee'  => (float) env('RAZORPAY_APPLICATION_FEE', 1),
     ],
 
 ];
